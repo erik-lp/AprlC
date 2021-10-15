@@ -13,6 +13,7 @@ class AprlCmdParser(args: Array<String>) {
             if (inTargetDir) {
                 targetDir = arg
                 inTargetDir = false
+                continue
             }
             when (arg) {
                 "-d" -> inTargetDir = true
