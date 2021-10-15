@@ -101,6 +101,28 @@ fun loadField(clazz: Class<*>, fieldName: String): Field? {
     return null
 }
 
+fun lastValidClass(identifiers: List<String>): Class<*>? {
+    val currentIdentifiers = ArrayList<String>()
+    var lastValidClass: Class<*>? = null
+    for (id in identifiers) {
+        currentIdentifiers.add(id)
+        val currentString = currentIdentifiers.joinToString(".")
+        lastValidClass = loadClass(currentString) ?: lastValidClass
+    }
+    return lastValidClass
+}
+
+fun lastValidPackage(identifiers: List<String>): Package? {
+    val currentIdentifiers = ArrayList<String>()
+    var lastValidPackage: Package? = null
+    for (id in identifiers) {
+        currentIdentifiers.add(id)
+        val currentString = currentIdentifiers.joinToString(".")
+        lastValidPackage = loadPackage(currentString) ?: lastValidPackage
+    }
+    return lastValidPackage
+}
+
 fun <T> nextElement(elements: List<T>, element: T): Pair<Int, T>? {
     for ((i, el) in elements.withIndex()) {
         if (el == element) {

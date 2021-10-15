@@ -2,9 +2,9 @@ package aprl.compiler
 
 import aprl.AprlParser
 import aprl.AprlParserBaseListener
-import aprl.compiler.jvm.Clazz
-import aprl.compiler.jvm.Import
-import aprl.compiler.jvm.Namespace
+import aprl.compiler.jvm.*
+import aprl.compiler.jvm.Annotation
+import aprl.compiler.jvm.Enum
 import java.io.File
 import java.util.*
 
@@ -23,14 +23,16 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
             enclosingClass = if (new) Clazz(fileName) else null
         }
     
-    // null if there is only one class/struct/enum/interface/annotation, $fileName otherwise
+    // $fileName if there are top level functions/properties/extensions, null otherwise
     private var enclosingClass: Clazz? = null
     
     // if there is a targetDir, use it; source folder otherwise
-    private val outputFileName = targetDir.safe { path + "\\" + fileName.substringAfterLast(File.separator) } ?: fileName.replaceAfterLast(".", SUFFIX)
+    private val outputFileName = targetDir.safe { path + File.separator + fileName.substringAfterLast(File.separator) } ?: fileName.replaceAfterLast(".", SUFFIX)
     
     private val namespace = Namespace()
     private val imports = LinkedHashSet<Import>()
+    
+    private val topLevelObjects = ArrayList<TopLevelObject>()
     
     fun compile() {}
     
@@ -243,30 +245,6 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
         }
     }
     
-    private fun lastValidClass(identifiers: List<String>): Class<*>? {
-        val currentIdentifiers = ArrayList<String>()
-        var lastValidClass: Class<*>? = null
-        for (id in identifiers) {
-            currentIdentifiers.add(id)
-            val currentString = currentIdentifiers.joinToString(".")
-            lastValidClass = loadClass(currentString) ?: lastValidClass
-        }
-        return lastValidClass
-    }
-    
-    private fun lastValidPackage(identifiers: List<String>): Package? {
-        val currentIdentifiers = ArrayList<String>()
-        var lastValidPackage: Package? = null
-        for (id in identifiers) {
-            currentIdentifiers.add(id)
-            val currentString = currentIdentifiers.joinToString(".")
-            lastValidPackage = loadPackage(currentString) ?: lastValidPackage
-        }
-        return lastValidPackage
-    }
-    
-    override fun enterImportAlias(ctx: AprlParser.ImportAliasContext) {}
-    
     override fun enterTopLevelObject(ctx: AprlParser.TopLevelObjectContext) {
         val clazz = ctx.classDeclaration()
         val inter = ctx.interfaceDeclaration()
@@ -301,27 +279,49 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     private fun parseTopLevelClass(ctx: AprlParser.ClassDeclarationContext) {
         val modifiers = modifiersFromModifierList(ctx.modifierList())
         val annotations = annotationsFromModifierList(ctx.modifierList())
-        
+        val clazz = Clazz(ctx.simpleIdentifier().text)
+        // TODO: parse class
+        topLevelObjects.add(clazz)
     }
     
     private fun parseTopLevelInterface(ctx: AprlParser.InterfaceDeclarationContext) {
-    
+        val modifiers = modifiersFromModifierList(ctx.modifierList())
+        val annotations = annotationsFromModifierList(ctx.modifierList())
+        val inter = Interface(ctx.simpleIdentifier().text)
+        // TODO: parse interface
+        topLevelObjects.add(inter)
     }
     
     private fun parseTopLevelAnnotation(ctx: AprlParser.AnnotationDeclarationContext) {
-    
+        val modifiers = modifiersFromModifierList(ctx.modifierList())
+        val annotations = annotationsFromModifierList(ctx.modifierList())
+        val annotation = Annotation(ctx.simpleIdentifier().text)
+        // TODO: parse annotation class
+        topLevelObjects.add(annotation)
     }
     
     private fun parseTopLevelDocument(ctx: AprlParser.DocumentDeclarationContext) {
-    
+        val modifiers = modifiersFromModifierList(ctx.modifierList())
+        val annotations = annotationsFromModifierList(ctx.modifierList())
+        val document = Document(ctx.simpleIdentifier().text)
+        // TODO: parse document class
+        topLevelObjects.add(document)
     }
     
     private fun parseTopLevelStruct(ctx: AprlParser.StructDeclarationContext) {
-    
+        val modifiers = modifiersFromModifierList(ctx.modifierList())
+        val annotations = annotationsFromModifierList(ctx.modifierList())
+        val struct = Struct(ctx.simpleIdentifier().text)
+        // TODO: parse struct
+        topLevelObjects.add(struct)
     }
     
     private fun parseTopLevelEnum(ctx: AprlParser.EnumDeclarationContext) {
-    
+        val modifiers = modifiersFromModifierList(ctx.modifierList())
+        val annotations = annotationsFromModifierList(ctx.modifierList())
+        val enum = Enum(ctx.simpleIdentifier().text)
+        // TODO: parse enum
+        topLevelObjects.add(enum)
     }
     
     private fun parseTopLevelExtension(ctx: AprlParser.ExtensionDeclarationContext) {

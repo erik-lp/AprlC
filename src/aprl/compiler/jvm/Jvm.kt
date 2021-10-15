@@ -1,12 +1,10 @@
 package aprl.compiler.jvm
 
-private sealed interface JvmToken {
-    // fun toByteCode(): ByteArray
-    fun toJava(): String
-}
+sealed interface ClassMember
+sealed interface StructMember // TODO: StructMember
+sealed interface TopLevelObject : ClassMember
 
 enum class Modifier {
-    
     PUBLIC,
     LOCAL,
     BOUNDED,
@@ -21,37 +19,35 @@ enum class Modifier {
     EXTERNAL;
     
     fun `class`() = this in PUBLIC..OPEN
-    
     fun function() = this in PUBLIC..COVER || this in DIRECT..EXTERNAL
-    
     fun property() = this in PUBLIC..COVER
-    
     fun parameter() = this == PARAMS
-    
 }
 
-class Clazz(val name: String): JvmToken, ClassMember {
+class Clazz(val name: String) : TopLevelObject {
     
     val annotations = Annotations()
     val modifiers = ArrayList<Modifier>()
-    
     val typeParameters = TypeParameters()
     
     val superClasses = ArrayList<Type>()
     
     val classMembers = ArrayList<ClassMember>()
     
-    override fun toJava(): String {
-        val sb = StringBuilder()
-        
-        return sb.toString()
-    }
+}
+
+class Struct(val name: String) : TopLevelObject {
+    
+    val annotations = Annotations()
+    val modifiers = ArrayList<Modifier>()
+    
+    val superClasses = ArrayList<Type>()
+    
+    val structMembers = ArrayList<StructMember>()
     
 }
 
-interface ClassMember
-
-class Constructor(val clazz: Clazz) : ClassMember {
+class Constructor(val clazz: Clazz) : TopLevelObject {
     val annotations = Annotations()
     val modifiers = ArrayList<Modifier>()
     val thisParameters: ValueArguments? = null
@@ -83,23 +79,23 @@ class ValueArgument(val value: Expression) {
 
 class Expression
 
-class Interface(val name: String) : ClassMember {
+class Interface(val name: String) : TopLevelObject {
 
 }
 
-class Annotation(val name: String) : ClassMember {
+class Annotation(val name: String) : TopLevelObject {
 
 }
 
-class Enum(val name: String) : ClassMember {
+class Enum(val name: String) : TopLevelObject {
 
 }
 
-class Document(val name: String) : ClassMember {
+class Document(val name: String) : TopLevelObject {
 
 }
 
-class Method(val name: String, val returnType: Type) : ClassMember {
+class Function(val name: String, val returnType: Type) : TopLevelObject {
     val annotations = Annotations()
     val modifiers = ArrayList<Modifier>()
     val parameters = ArrayList<MethodParameter>()
@@ -108,7 +104,7 @@ class Method(val name: String, val returnType: Type) : ClassMember {
 
 data class MethodParameter(val name: String, val type: Type)
 
-class Field(val name: String, val type: Type, val initialValue: Expression? = null, val static: Boolean = false) : ClassMember {
+class Property(val name: String, val type: Type, val initialValue: Expression? = null, val static: Boolean = false) : TopLevelObject {
     val annotations = Annotations()
     val modifiers = ArrayList<Modifier>()
 }
