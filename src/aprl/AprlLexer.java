@@ -1,4 +1,4 @@
-// Generated from C:/Users/erik-/IdeaProjects/AprlC/src/aprl\AprlLexer.g4 by ANTLR 4.9.1
+// Generated from /Users/erik/Desktop/IntelliJ/AprlC/src/aprl/AprlLexer.g4 by ANTLR 4.9.1
 package aprl;
 import org.antlr.v4.runtime.Lexer;
 import org.antlr.v4.runtime.CharStream;

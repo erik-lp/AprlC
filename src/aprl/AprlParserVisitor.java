@@ -1,4 +1,4 @@
-// Generated from C:/Users/erik-/IdeaProjects/AprlC/src/aprl\AprlParser.g4 by ANTLR 4.9.1
+// Generated from /Users/erik/Desktop/IntelliJ/AprlC/src/aprl/AprlParser.g4 by ANTLR 4.9.1
 package aprl;
 import org.antlr.v4.runtime.tree.ParseTreeVisitor;
 
@@ -142,12 +142,6 @@ public interface AprlParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitAnnotatedInterfaceDelegationSpecifier(AprlParser.AnnotatedInterfaceDelegationSpecifierContext ctx);
-	/**
-	 * Visit a parse tree produced by {@link AprlParser#constructorInvocation}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitConstructorInvocation(AprlParser.ConstructorInvocationContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link AprlParser#valueArguments}.
 	 * @param ctx the parse tree
@@ -304,18 +298,6 @@ public interface AprlParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitNullableType(AprlParser.NullableTypeContext ctx);
-	/**
-	 * Visit a parse tree produced by {@link AprlParser#userType}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitUserType(AprlParser.UserTypeContext ctx);
-	/**
-	 * Visit a parse tree produced by {@link AprlParser#simpleUserType}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitSimpleUserType(AprlParser.SimpleUserTypeContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link AprlParser#structDeclaration}.
 	 * @param ctx the parse tree

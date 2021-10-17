@@ -1,4 +1,4 @@
-// Generated from C:/Users/erik-/IdeaProjects/AprlC/src/aprl\AprlParser.g4 by ANTLR 4.9.1
+// Generated from /Users/erik/Desktop/IntelliJ/AprlC/src/aprl/AprlParser.g4 by ANTLR 4.9.1
 package aprl;
 import org.antlr.v4.runtime.tree.ParseTreeListener;
 
@@ -227,16 +227,6 @@ public interface AprlParserListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitAnnotatedInterfaceDelegationSpecifier(AprlParser.AnnotatedInterfaceDelegationSpecifierContext ctx);
-	/**
-	 * Enter a parse tree produced by {@link AprlParser#constructorInvocation}.
-	 * @param ctx the parse tree
-	 */
-	void enterConstructorInvocation(AprlParser.ConstructorInvocationContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link AprlParser#constructorInvocation}.
-	 * @param ctx the parse tree
-	 */
-	void exitConstructorInvocation(AprlParser.ConstructorInvocationContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link AprlParser#valueArguments}.
 	 * @param ctx the parse tree
@@ -497,26 +487,6 @@ public interface AprlParserListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitNullableType(AprlParser.NullableTypeContext ctx);
-	/**
-	 * Enter a parse tree produced by {@link AprlParser#userType}.
-	 * @param ctx the parse tree
-	 */
-	void enterUserType(AprlParser.UserTypeContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link AprlParser#userType}.
-	 * @param ctx the parse tree
-	 */
-	void exitUserType(AprlParser.UserTypeContext ctx);
-	/**
-	 * Enter a parse tree produced by {@link AprlParser#simpleUserType}.
-	 * @param ctx the parse tree
-	 */
-	void enterSimpleUserType(AprlParser.SimpleUserTypeContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link AprlParser#simpleUserType}.
-	 * @param ctx the parse tree
-	 */
-	void exitSimpleUserType(AprlParser.SimpleUserTypeContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link AprlParser#structDeclaration}.
 	 * @param ctx the parse tree

@@ -10,7 +10,11 @@ import java.nio.charset.Charset
 import java.nio.file.Paths
 
 fun main(args: Array<String>) {
-    aprlc(args)
+    try {
+        aprlc(args)
+    } catch (ex: aprl.compiler.Error) {
+        println("\u001B[31m${ex.message}\u001B[0m\n")
+    }
 }
 
 private fun aprlc(args: Array<String>) {

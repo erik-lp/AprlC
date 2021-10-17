@@ -1,4 +1,4 @@
-// Generated from C:/Users/erik-/IdeaProjects/AprlC/src/aprl\AprlParser.g4 by ANTLR 4.9.1
+// Generated from /Users/erik/Desktop/IntelliJ/AprlC/src/aprl/AprlParser.g4 by ANTLR 4.9.1
 package aprl;
 
 import org.antlr.v4.runtime.ParserRuleContext;
@@ -275,18 +275,6 @@ public class AprlParserBaseListener implements AprlParserListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitAnnotatedInterfaceDelegationSpecifier(AprlParser.AnnotatedInterfaceDelegationSpecifierContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void enterConstructorInvocation(AprlParser.ConstructorInvocationContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void exitConstructorInvocation(AprlParser.ConstructorInvocationContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
@@ -599,30 +587,6 @@ public class AprlParserBaseListener implements AprlParserListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitNullableType(AprlParser.NullableTypeContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void enterUserType(AprlParser.UserTypeContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void exitUserType(AprlParser.UserTypeContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void enterSimpleUserType(AprlParser.SimpleUserTypeContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void exitSimpleUserType(AprlParser.SimpleUserTypeContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *

@@ -1,28 +1,12 @@
 package aprl.compiler
 
 import aprl.AprlParser
-import aprl.compiler.jvm.Annotation
-import aprl.compiler.jvm.Import
+import aprl.compiler.jvm.Annotations
 import aprl.compiler.jvm.Modifier
 import org.antlr.v4.runtime.ParserRuleContext
-import org.antlr.v4.runtime.tree.TerminalNode
-import java.lang.reflect.Field
-import java.lang.reflect.Method
 import java.util.*
 
-fun namespaceMatchesLocation(ctx: AprlParser.NamespaceHeaderContext, filePath: String): Boolean {
-    val identifier = ctx.identifier()!!
-    val simpleIdentifiers = ArrayList(identifier.simpleIdentifier()!!.reversed())
-    val subFolders = LinkedList(filePath.split("\\").reversed()).also { it.pop() }
-    for (id in simpleIdentifiers) {
-        if (id.Identifier().symbol.text != subFolders.pop()) {
-            return false
-        }
-    }
-    return true
-}
-
-fun modifiersFromModifierList(ctx: AprlParser.ModifierListContext): List<Modifier> {
+fun modifiersFromModifierList(ctx: AprlParser.ModifierListContext): ArrayList<Modifier> {
     val modifiers = ArrayList<Modifier>()
     for (modifier in ctx.modifier()) {
         val visibility = modifier.visibilityModifier()
@@ -57,7 +41,7 @@ fun modifiersFromModifierList(ctx: AprlParser.ModifierListContext): List<Modifie
     return modifiers
 }
 
-fun annotationsFromModifierList(ctx: AprlParser.ModifierListContext): List<Annotation> {
+fun annotationsFromModifierList(ctx: AprlParser.ModifierListContext): Annotations {
     TODO("Not yet implemented")
 }
 
@@ -66,7 +50,7 @@ fun loadPackage(string: String): Package? {
     return Package.getPackage(string)
 }
 
-fun loadClass(string: String): Class<*>? {
+private fun loadClass(string: String): Class<*>? {
     return try {
         Class.forName(string)
     } catch (ex: ClassNotFoundException) {
@@ -74,67 +58,47 @@ fun loadClass(string: String): Class<*>? {
     }
 }
 
-fun loadMethod(clazz: Class<*>, methodName: String): Method? {
-    for (method in clazz.methods) {
-        if (method.name == methodName) {
-            return method
-        }
-    }
-    return null
+fun loadCompleteClass(string: String): Class<*>? {
+    return loadCompleteClass(ArrayList(string.split(".")), arrayListOf())
 }
 
-fun loadNestedClass(clazz: Class<*>, className: String): Class<*>? {
-    for (innerClass in clazz.classes) {
-        if (innerClass.name == className) {
-            return innerClass
-        }
+private fun loadCompleteClass(identifiers: MutableList<String>, subIdentifiers: MutableList<String>): Class<*>? {
+    if (identifiers.isEmpty()) {
+        return null
     }
-    return null
+    val subIdentifierString = if (subIdentifiers.isEmpty()) "" else "$" + subIdentifiers.reversed().joinToString("$")
+    val string = identifiers.joinToString(".") + subIdentifierString
+    val last = identifiers.removeAt(identifiers.lastIndex)
+    return loadClass(string) ?: loadCompleteClass(identifiers, ArrayList(subIdentifiers + last))
 }
 
-fun loadField(clazz: Class<*>, fieldName: String): Field? {
-    for (field in clazz.fields) {
-        if (field.name == fieldName) {
-            return field
-        }
-    }
-    return null
-}
+fun loadMethod(clazz: Class<*>, methodName: String) = clazz.methods.firstOrNull { it.name == methodName }
+fun loadMethods(clazz: Class<*>, methodName: String) = clazz.methods.filter { it.name == methodName }
 
-fun lastValidClass(identifiers: List<String>): Class<*>? {
+fun loadNestedClass(clazz: Class<*>, className: String) = clazz.classes.firstOrNull { it.name == className }
+fun loadNestedClasses(clazz: Class<*>, className: String) = clazz.classes.filter { it.name == className }
+
+fun loadField(clazz: Class<*>, fieldName: String) = clazz.fields.firstOrNull { it.name == fieldName }
+fun loadFields(clazz: Class<*>, fieldName: String) = clazz.fields.filter { it.name == fieldName }
+
+fun faultyIdentifier(identifiers: List<AprlParser.SimpleIdentifierContext>): AprlParser.SimpleIdentifierContext {
     val currentIdentifiers = ArrayList<String>()
-    var lastValidClass: Class<*>? = null
-    for (id in identifiers) {
+    var lastValidIndex = 0
+    for ((i, id) in identifiers.map { it.text }.withIndex()) {
         currentIdentifiers.add(id)
         val currentString = currentIdentifiers.joinToString(".")
-        lastValidClass = loadClass(currentString) ?: lastValidClass
+        lastValidIndex = if (loadCompleteClass(currentString) != null || loadPackage(currentString) != null) i else break
     }
-    return lastValidClass
-}
-
-fun lastValidPackage(identifiers: List<String>): Package? {
-    val currentIdentifiers = ArrayList<String>()
-    var lastValidPackage: Package? = null
-    for (id in identifiers) {
-        currentIdentifiers.add(id)
-        val currentString = currentIdentifiers.joinToString(".")
-        lastValidPackage = loadPackage(currentString) ?: lastValidPackage
-    }
-    return lastValidPackage
-}
-
-fun <T> nextElement(elements: List<T>, element: T): Pair<Int, T>? {
-    for ((i, el) in elements.withIndex()) {
-        if (el == element) {
-            return try {
-                Pair(i + 1, elements[i + 1])
-            } catch (ex: IndexOutOfBoundsException) {
-                null
-            }
-        }
-    }
-    return null
+    return identifiers.getOrNull(lastValidIndex + 1) ?: throw InternalError("faultyIdentifier() was called despite no faulty identifiers")
 }
 
 val ParserRuleContext.position: Pair<Int, Int>
     get() = Pair(start.line, start.charPositionInLine + 1)
+
+fun <A> Pair<A, A>.plus(a: A, b: A, add: (A, A) -> A): Pair<A, A> {
+    return Pair(add(first, a), add(second, b))
+}
+
+inline fun <reified T> List<T>.asArray(): Array<T> = Array(this.size) {
+    this[it]
+}

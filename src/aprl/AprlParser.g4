@@ -86,16 +86,13 @@ annotatedDelegationSpecifier
     : annotations? delegationSpecifier;
 
 delegationSpecifier
-    : constructorInvocation | userType | functionType;
+    : identifier valueArguments?;
 
 interfaceDelegationSpecifiers
     : annotatedInterfaceDelegationSpecifier (NL* COMMA NL* annotatedInterfaceDelegationSpecifier)*;
 
 annotatedInterfaceDelegationSpecifier
-    : annotations? (userType | functionType);
-
-constructorInvocation
-    : userType valueArguments;
+    : annotations? identifier;
 
 valueArguments
     : LPAREN NL* (valueArgument (NL* COMMA NL* valueArgument)* NL*)? RPAREN;
@@ -136,7 +133,7 @@ typeProjectionModifierList
     : (typeProjectionModifier NL*)+;
 
 typeProjectionModifier
-    : varianceModifier NL* | annotation;
+    : varianceModifier | annotation;
 
 typeParameters
     : LANGLE NL* typeParameter (NL* COMMA NL* typeParameter)* NL* RANGLE;
@@ -157,16 +154,16 @@ varianceModifier
     : SUB_ | SUPER;
 
 type
-    : annotations? (functionType | parenthesizedType | arrayType | nullableType | userType);
+    : annotations? (functionType | parenthesizedType | arrayType | nullableType | identifier);
 
 functionType
     : functionTypeParameters NL* RARROW_THICK NL* type;
 
 receiverType
-    : annotations? (parenthesizedType | nullableType | userType);
+    : annotations? (parenthesizedType | nullableType | identifier);
 
 functionTypeParameters
-    : LPAREN NL* ((parameter | type) (NL* COMMA NL* (parameter | type))*)? NL* RPAREN;
+    : LPAREN NL* (type (NL* COMMA NL* type)*)? NL* RPAREN;
 
 parenthesizedType
     : LPAREN NL* type NL* RPAREN;
@@ -175,13 +172,7 @@ arrayType
     : LSQUARE NL* type NL* RSQUARE;
 
 nullableType
-    : (userType | parenthesizedType | arrayType) NL* QUEST+;
-
-userType
-    : simpleUserType (NL* PERIOD NL* simpleUserType)*;
-
-simpleUserType
-    : simpleIdentifier (NL* typeArguments)?;
+    : (identifier | parenthesizedType | arrayType) QUEST;
 
 // Struct
 
@@ -338,7 +329,7 @@ infixFunctionCall
     : rangeExpression (simpleIdentifier rangeExpression)*;
 
 rangeExpression
-    : xorExpression (toOperator xorExpression (byOperator xorExpression)?)*;
+    : xorExpression (toOperator xorExpression (byOperator xorExpression)?)?;
 
 xorExpression
     : additiveExpression (xorOperator additiveExpression)*;
@@ -420,7 +411,7 @@ tryExpression
     : TRY NL* block (NL* catchBlock)* (NL* finallyBlock)?;
 
 catchBlock
-    : CATCH NL* LPAREN NL* annotations? simpleIdentifier NL* COLON NL* userType (NL* CONJ NL* userType)* NL* RPAREN NL* block;
+    : CATCH NL* LPAREN NL* annotations? simpleIdentifier NL* COLON NL* identifier (NL* CONJ NL* identifier)* NL* RPAREN NL* block;
 
 finallyBlock
     : FINALLY NL* block;
@@ -526,12 +517,10 @@ lambdaParameters
     : lambdaParameter (NL* COMMA NL* lambdaParameter)*;
 
 lambdaParameter
-    : variableDeclaration
-    | multiVariableDeclaration (NL* COLON NL* type)?;
+    : (variableDeclaration | multiVariableDeclaration) (NL* COLON NL* type)?;
 
 anonymousFunction
     : FUNCTION
-    (NL* receiverType NL* PERIOD)?
     NL* functionValueParameters
     (NL* RARROW NL* type)?
     (NL* functionBody)?;
@@ -610,7 +599,10 @@ assignableSuffix
 // Access operators
 
 callSuffix
-    : typeArguments? (valueArguments? annotatedLambda | valueArguments);
+    : typeArguments? (lambdaCallSuffix | valueArguments);
+
+lambdaCallSuffix
+    : valueArguments? annotatedLambda;
 
 annotatedLambda
     : annotations? labelDefinition? NL* lambdaLiteral;
@@ -664,7 +656,7 @@ annotation
     : HASH (unescapedAnnotation | LSQUARE NL* unescapedAnnotation+ NL* RSQUARE);
 
 unescapedAnnotation
-    : identifier typeArguments? valueArguments?;
+    : identifier valueArguments?;
 
 // Identifiers
 

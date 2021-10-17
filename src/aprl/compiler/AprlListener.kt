@@ -7,6 +7,7 @@ import aprl.compiler.jvm.Annotation
 import aprl.compiler.jvm.Enum
 import java.io.File
 import java.util.*
+import kotlin.jvm.Throws
 
 class AprlListener(private val fileName: String, targetDir: File?) : AprlParserBaseListener() {
     
@@ -27,10 +28,11 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     private var enclosingClass: Clazz? = null
     
     // if there is a targetDir, use it; source folder otherwise
-    private val outputFileName = targetDir.safe { path + File.separator + fileName.substringAfterLast(File.separator) } ?: fileName.replaceAfterLast(".", SUFFIX)
+    private val outputFileName = targetDir.safe { path + File.separator + fileName.substringAfterLast(File.separator) }
+        ?: fileName.replaceAfterLast(".", SUFFIX)
     
     private val namespace = Namespace()
-    private val imports = LinkedHashSet<Import>()
+    private val imports = ArrayList<Import>()
     
     private val topLevelObjects = ArrayList<TopLevelObject>()
     
@@ -44,6 +46,18 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
         }
         namespace.addAll(ctx.identifier().simpleIdentifier().map { it.text })
         namespace.freeze()
+    }
+    
+    private fun namespaceMatchesLocation(ctx: AprlParser.NamespaceHeaderContext, filePath: String): Boolean {
+        val identifier = ctx.identifier()
+        val simpleIdentifiers = ArrayList(identifier.simpleIdentifier().reversed())
+        val subFolders = LinkedList(filePath.split(File.separator).reversed()).also { it.pop() }
+        for (id in simpleIdentifiers) {
+            if (id.Identifier().symbol.text != subFolders.pop()) {
+                return false
+            }
+        }
+        return true
     }
     
     override fun enterImportHeader(ctx: AprlParser.ImportHeaderContext) {
@@ -64,16 +78,22 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
                     parseAllImport(ctx.identifier())
                 } else {
                     if (ctx.subImportIdentifier().size > 1) { // multiple import (using foo.[a, b])
-                        val elementsInBrackets = ArrayList<Pair<AprlParser.SimpleIdentifierContext, String?>>()
+                        val elementsInBrackets = ArrayList<Pair<AprlParser.SimpleIdentifierContext, AprlParser.ImportAliasContext?>>()
                         for (subImportIdentifier in ctx.subImportIdentifier()) {
-                            elementsInBrackets.add(Pair(subImportIdentifier.simpleIdentifier(), subImportIdentifier.importAlias()?.simpleIdentifier()?.text))
+                            elementsInBrackets.add(
+                                Pair(
+                                    subImportIdentifier.simpleIdentifier(),
+                                    subImportIdentifier.importAlias()
+                                )
+                            )
                         }
                         parseMultiImport(ctx.identifier(), elementsInBrackets)
                     } else { // redundant brackets (using foo.[a])
                         val identifierPosition = ctx.subImportIdentifier(0).position
                         val bracketPosition = Pair(identifierPosition.first, identifierPosition.second - 1)
                         WARN(simpleName, bracketPosition, "Redundant brackets")
-                        val allIdentifiers = ctx.identifier().simpleIdentifier() + ctx.subImportIdentifier(0).simpleIdentifier()
+                        val allIdentifiers =
+                            ctx.identifier().simpleIdentifier() + ctx.subImportIdentifier(0).simpleIdentifier()
                         parseSingleImport(allIdentifiers, ctx.subImportIdentifier(0).importAlias())
                     }
                 }
@@ -84,14 +104,21 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     private fun parseAllImport(identifier: AprlParser.IdentifierContext) {
         val importIdentifier = identifier.simpleIdentifier().joinToString(".") { it.text }
         val pkg = loadPackage(importIdentifier)
-        val clazz = loadClass(importIdentifier)
+        val clazz = loadCompleteClass(importIdentifier)
         if (pkg != null) {
             imports.add(Import().also { it.pkg = pkg })
         } else if (clazz != null) {
             importEverything(clazz)
         } else {
-            importEverything(validateClass(identifier.simpleIdentifier()))
+            UNRESOLVED_REFERENCE(identifier.simpleIdentifier())
         }
+    }
+    
+    @Throws(Error::class)
+    @Suppress("FunctionName")
+    private fun UNRESOLVED_REFERENCE(identifiers: List<AprlParser.SimpleIdentifierContext>): Nothing {
+        val error = faultyIdentifier(identifiers)
+        throw Error(simpleName, error.position, "Unresolved reference: '${error.text}'")
     }
     
     private fun importEverything(from: Class<*>) {
@@ -100,148 +127,93 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
         from.fields.forEach { field -> imports.add(Import().also { it.field = field }) }
     }
     
-    private fun parseMultiImport(identifier: AprlParser.IdentifierContext, elements: List<Pair<AprlParser.SimpleIdentifierContext, String?>>) {
+    private fun parseMultiImport(
+        identifier: AprlParser.IdentifierContext,
+        elements: List<Pair<AprlParser.SimpleIdentifierContext, AprlParser.ImportAliasContext?>>
+    ) {
         val importIdentifier = identifier.simpleIdentifier().joinToString(".") { it.text }
         val pkg = loadPackage(importIdentifier)
-        val clazz = loadClass(importIdentifier)
+        val clazz = loadCompleteClass(importIdentifier)
         if (pkg != null) {
             importMultipleFromPackage(pkg, elements)
         } else if (clazz != null) {
             importMultipleFromClass(clazz, elements)
         } else {
-            importMultipleFromClass(validateClass(identifier.simpleIdentifier()), elements)
+            UNRESOLVED_REFERENCE(identifier.simpleIdentifier())
         }
     }
     
-    private fun validateClass(identifiers: List<AprlParser.SimpleIdentifierContext>): Class<*> {
-        val importIdentifier = identifiers.joinToString(".") { it.text }
-        val lastValidClass = lastValidClass(identifiers.map { it.text })
-        val lastValidPackage = lastValidPackage(identifiers.map { it.text })
-        if (lastValidClass == null) {
-            if (lastValidPackage == null) {
-                throw Error(simpleName, identifiers[0].position, "Unresolved reference: ${identifiers[0].text}")
-            } else {
-                val subPackage = lastValidPackage.name.substringAfterLast(".")
-                val (index, unresolved) = nextElement(identifiers.map { it.text }, subPackage)!!
-                throw Error(simpleName, identifiers[index].position, "Unresolved reference: $unresolved")
-            }
-        } else {
-            if (lastValidPackage == null) {
-                throw InternalError("How can lastValidPackage be null if lastValidClass ($lastValidClass) isn't?")
-            } else {
-                val remaining = importIdentifier.substringAfter(lastValidClass.name).removePrefix(".")
-                assert(remaining.isNotBlank())
-                val remainingIdentifiers = LinkedList(remaining.split("."))
-                var nestedClass: Class<*>? = null
-                while (remainingIdentifiers.size > 0) {
-                    val firstRemaining = remainingIdentifiers.pop()
-                    nestedClass = loadNestedClass(nestedClass ?: lastValidClass, firstRemaining)
-                        ?: throw Error(simpleName, identifiers.first { it.text == firstRemaining }.position, "Unresolved reference: $firstRemaining")
-                }
-                if (nestedClass == null) {
-                    val subSomething = lastValidClass.name.substringAfterLast(".")
-                    val (index, unresolved) = nextElement(identifiers.map { it.text }, subSomething)!!
-                    throw Error(simpleName, identifiers[index].position, "Unresolved reference: $unresolved")
-                }
-                return nestedClass
-            }
-        }
-    }
-    
-    private fun importMultipleFromPackage(from: Package, elements: List<Pair<AprlParser.SimpleIdentifierContext, String?>>) {
+    private fun importMultipleFromPackage(
+        from: Package,
+        elements: List<Pair<AprlParser.SimpleIdentifierContext, AprlParser.ImportAliasContext?>>
+    ) {
         val pkg = from.name
         for ((subIdentifier, alias) in elements) {
-            val clazz = loadClass("$pkg.${subIdentifier.text}") ?: throw Error(simpleName, subIdentifier.position, "Unresolved reference: ${subIdentifier.text}")
-            imports.add(Import().also { it.clazz = clazz }.also { it.alias = alias })
+            val clazz = loadCompleteClass("$pkg.${subIdentifier.text}") ?: throw Error(
+                simpleName,
+                subIdentifier.position,
+                "Unresolved reference: '${subIdentifier.text}'"
+            )
+            imports.add(Import().also { it.clazz = clazz; it.alias = alias?.simpleIdentifier()?.text })
         }
     }
     
-    private fun importMultipleFromClass(from: Class<*>, elements: List<Pair<AprlParser.SimpleIdentifierContext, String?>>) {
+    private fun importMultipleFromClass(
+        from: Class<*>,
+        elements: List<Pair<AprlParser.SimpleIdentifierContext, AprlParser.ImportAliasContext?>>
+    ) {
         for ((subIdentifier, alias) in elements) {
-            addValidImports(from, subIdentifier.text, alias, subIdentifier.position)
+            addValidImports(from, subIdentifier, alias)
         }
     }
     
-    private fun addValidImports(clazz: Class<*>, identifier: String, alias: String?, position: Pair<Int, Int>) {
-        val innerClass = loadNestedClass(clazz, identifier)
-        val method = loadMethod(clazz, identifier)
-        val field = loadField(clazz, identifier)
-        if (innerClass != null) {
-            imports.add(Import().also { it.clazz = innerClass }.also { it.alias = alias })
-        }
+    private fun addValidImports(clazz: Class<*>, identifier: AprlParser.SimpleIdentifierContext, alias: AprlParser.ImportAliasContext?) {
+        val method = loadMethod(clazz, identifier.text)
+        val field = loadField(clazz, identifier.text)
         if (method != null) {
-            imports.add(Import().also { it.method = method }.also { it.alias = alias })
+            imports.add(Import().also { it.method = method; it.alias = alias?.simpleIdentifier()?.text })
         }
         if (field != null) {
             if (this.imports.any { it.field?.name == field.name && it.field != field }) {
-                throw Error(simpleName, position, "Field by name '${field.name}' is already defined in an import")
+                throw Error(simpleName, identifier.position, "Field by name '${field.name}' is already defined in an import")
             } else {
-                imports.add(Import().also { it.field = field }.also { it.alias = alias })
+                imports.add(Import().also { it.field = field; it.alias = alias?.simpleIdentifier()?.text })
             }
         }
-        if (innerClass == null && method == null && field == null) {
-            throw Error(simpleName, position, "Unresolved reference: $identifier")
+        if (method == null && field == null) {
+            throw Error(simpleName, identifier.position, "Unresolved reference: '${identifier.text}'")
+        }
+        if (identifier.text == alias?.simpleIdentifier()?.text) {
+            WARN(simpleName, alias!!.position, "Redundant import alias")
         }
     }
     
-    private fun parseSingleImport(identifier: AprlParser.IdentifierContext, importAlias: AprlParser.ImportAliasContext?) {
+    private fun parseSingleImport(
+        identifier: AprlParser.IdentifierContext,
+        importAlias: AprlParser.ImportAliasContext?
+    ) {
         parseSingleImport(identifier.simpleIdentifier(), importAlias)
     }
     
-    private fun parseSingleImport(identifiers: List<AprlParser.SimpleIdentifierContext>, importAlias: AprlParser.ImportAliasContext?) {
+    private fun parseSingleImport(
+        identifiers: List<AprlParser.SimpleIdentifierContext>,
+        importAlias: AprlParser.ImportAliasContext?
+    ) {
         val importIdentifier = identifiers.joinToString(".") { it.text }
         val alias = importAlias?.simpleIdentifier()?.text
         val pkg = loadPackage(importIdentifier)
-        val clazz = loadClass(importIdentifier)
+        val clazz = loadCompleteClass(importIdentifier)
         if (pkg != null) {
             throw Error(simpleName, identifiers.last().position, "Namespaces cannot be imported")
         } else if (clazz != null) {
             if (clazz.simpleName == alias) {
-                WARN(simpleName, importAlias!!.simpleIdentifier().position, "Import alias matches canonical name")
+                WARN(simpleName, importAlias!!.position, "Redundant import alias")
             }
-            val import = Import()
-            import.clazz = clazz
-            import.alias = alias
-            imports.add(import)
+            imports.add(Import().also { it.clazz = clazz; it.alias = alias })
         } else {
-            // it must be a method, field, nested class or invalid
-            val lastValidClass: Class<*>? = lastValidClass(identifiers.map { it.text })
-            val lastValidPackage: Package? = lastValidPackage(identifiers.map { it.text })
-            if (lastValidClass == null) {
-                if (lastValidPackage == null) {
-                    throw Error(simpleName, identifiers[0].position, "Unresolved reference: ${identifiers[0].text}")
-                } else { // valid package until some point, then invalid
-                    val subPackage = lastValidPackage.name.substringAfterLast(".")
-                    val (index, unresolved) = nextElement(identifiers.map { it.text }, subPackage)!!
-                    throw Error(simpleName, identifiers[index].position, "Unresolved reference: $unresolved")
-                }
-            } else {
-                if (lastValidPackage == null) {
-                    throw InternalError("How can lastValidPackage be null if lastValidClass ($lastValidClass) isn't?")
-                } else { // nested class, method, field or invalid
-                    val remaining = importIdentifier.substringAfter(lastValidClass.name).removePrefix(".")
-                    assert(remaining.isNotBlank())
-                    val remainingIdentifiers = LinkedList(remaining.split("."))
-                    
-                    if (remainingIdentifiers.size == 1) {
-                        addValidImports(lastValidClass, remaining, alias, identifiers.last().position) // simpleIdentifiers.last().position
-                    } else {
-                        // at least the first identifier must be a nested class
-                        var nestedClass: Class<*>? = null
-                        while (remainingIdentifiers.size > 1) { // still must be nested classes
-                            val firstRemaining = remainingIdentifiers.pop()
-                            nestedClass = loadNestedClass(nestedClass ?: lastValidClass, firstRemaining)
-                                ?: throw Error(simpleName,
-                                    identifiers.first { it.text == firstRemaining }.position,
-                                    "Unresolved reference: $firstRemaining")
-                        }
-                        if (nestedClass == null) {
-                            throw Error(simpleName, identifiers.first { it.text == remaining.split(".")[0] }.position, "Unresolved reference: ${remaining.split(".")[0]}")
-                        }
-                        addValidImports(nestedClass, remainingIdentifiers.pop(), alias, identifiers.last().position)
-                    }
-                }
-            }
+            val last = identifiers.last()
+            val possibleClass = loadCompleteClass(identifiers.dropLast(1).joinToString(".") { it.text }) ?: throw Error(simpleName, last.position, "Unresolved reference: '${last.text}'")
+            addValidImports(possibleClass, last, importAlias)
         }
     }
     
@@ -277,11 +249,240 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     }
     
     private fun parseTopLevelClass(ctx: AprlParser.ClassDeclarationContext) {
-        val modifiers = modifiersFromModifierList(ctx.modifierList())
-        val annotations = annotationsFromModifierList(ctx.modifierList())
         val clazz = Clazz(ctx.simpleIdentifier().text)
-        // TODO: parse class
+        clazz.modifiers = ctx.modifierList().safe { modifiersFromModifierList(this@safe) } ?: arrayListOf()
+        clazz.annotations = ctx.modifierList().safe { annotationsFromModifierList(this@safe) } ?: arrayListOf()
+        clazz.typeParameters = ctx.typeParameters().safe { parseTypeParameters(this@safe) } ?: arrayListOf()
+        val delegations = ctx.delegationSpecifiers()
+        if (delegations != null) {
+            val superClasses = ArrayList<Triple<Annotations, Class<*>, ValueArguments>>()
+            for (delegation in delegations.annotatedDelegationSpecifier()) {
+                val identifier = delegation.delegationSpecifier().identifier()
+                val annotations = delegation.annotations().safe { parseAnnotations(this@safe) } ?: arrayListOf()
+                val superClassOrInterface = loadImportedClass(identifier)
+                val valueArguments = delegation.delegationSpecifier().valueArguments().safe { parseValueArguments(this@safe) }
+                if (!superClassOrInterface.isInterface) {
+                    if (superClasses.any { !it.second.isInterface }) {
+                        throw Error(simpleName, identifier.position, "Class cannot extend multiple classes")
+                    }
+                    if (valueArguments == null) {
+                        val add: (Int, Int) -> Int = { a, b -> a + b }
+                        throw Error(simpleName, identifier.position.plus(0, identifier.text.length, add), "This type has a constructor and thus must be initialized here")
+                    }
+                }
+                superClasses.add(Triple(annotations, superClassOrInterface, valueArguments ?: arrayListOf()))
+            }
+        }
+        // TODO: class members
         topLevelObjects.add(clazz)
+    }
+    
+    private fun loadImportedClass(identifier: AprlParser.IdentifierContext): Class<*> {
+        val first = identifier.simpleIdentifier(0)
+        val clazz = loadCompleteClass(identifier.simpleIdentifier().joinToString(".") { it.text })
+        if (clazz != null) {
+            return clazz
+        }
+        val baseClass = loadImportedClass(first) ?: throw Error(simpleName, first.position, "Unresolved reference: '${first.text}'")
+        val suffix = if (identifier.simpleIdentifier().size == 1) "" else "." + identifier.simpleIdentifier().drop(1).joinToString(".") { it.text }
+        val completeString = baseClass.name + suffix
+        val completeClass = loadCompleteClass(completeString)
+        if (completeClass == null) {
+            var faulty: AprlParser.SimpleIdentifierContext? = null
+            val total = ArrayList<AprlParser.SimpleIdentifierContext>()
+            for (some in identifier.simpleIdentifier().drop(1)) {
+                total.add(some)
+                val str = baseClass.name + "." + total.joinToString(".") { it.text }
+                println("Checking existence of $str")
+                if (loadCompleteClass(str) == null) {
+                    faulty = some
+                    break
+                }
+            }
+            faulty ?: throw InternalError("loadCompleteClass() was null although it should not have been (${total.joinToString(".")})")
+            throw Error(simpleName, faulty.position, "Unresolved reference: '${faulty.text}'")
+        }
+        return completeClass
+    }
+    
+    private fun loadImportedClass(identifier: AprlParser.SimpleIdentifierContext): Class<*>? {
+        val name = identifier.text
+        // complete identifier (e.g. java.util.List)
+        var possibleClass = loadCompleteClass(name)
+        if (possibleClass != null) {
+            return possibleClass
+        }
+        // direct class import (e.g. using java.util.List; (...) List)
+        possibleClass = imports.firstOrNull { it.clazz?.simpleName == name || it.alias == name }?.clazz
+        if (possibleClass != null) {
+            return possibleClass
+        }
+        // package-import (e.g. using java.util.*; (...) List)
+        for (pkg in imports.mapNotNull { it.pkg }) {
+            possibleClass = loadCompleteClass(pkg.name + "." + name)
+            if (possibleClass != null) {
+                return possibleClass
+            }
+        }
+        return null
+    }
+    
+    private fun parseValueArguments(ctx: AprlParser.ValueArgumentsContext): ValueArguments {
+        TODO()
+    }
+    
+    private fun parseTypeParameters(ctx: AprlParser.TypeParametersContext): ArrayList<TypeParameter> {
+        return parseTypeParameters(ctx.typeParameter())
+    }
+    
+    private fun parseTypeParameters(parameters: List<AprlParser.TypeParameterContext>): ArrayList<TypeParameter> {
+        val actualParameters = ArrayList<TypeParameter>()
+        for (param in parameters) {
+            actualParameters.add(parseTypeParameter(param))
+        }
+        return actualParameters
+    }
+    
+    private fun parseTypeParameter(parameter: AprlParser.TypeParameterContext): TypeParameter {
+        val name = parameter.simpleIdentifier().text
+        val constraints = parameter.type().safe { parseTypeConstraints(this@safe) } ?: emptyList()
+        return TypeParameter(name, constraints.asArray())
+    }
+    
+    private fun parseTypeConstraints(constraints: List<AprlParser.TypeContext>): ArrayList<Type> {
+        val actualConstraints = ArrayList<Type>()
+        for (constraint in constraints) {
+            actualConstraints.add(parseType(constraint))
+        }
+        return actualConstraints
+    }
+    
+    private fun parseType(type: AprlParser.TypeContext): Type {
+        val annotations = parseAnnotations(type.annotations())
+        val function = type.functionType()
+        val paren = type.parenthesizedType()
+        val array = type.arrayType()
+        val nullable = type.nullableType()
+        val identifier = type.identifier()
+        return if (function != null) {
+            parseFunctionType(annotations, function)
+        } else if (paren != null) {
+            parseType(paren.type())
+        } else if (array != null) {
+            ArrayType(annotations, parseType(array.type()))
+        } else if (nullable != null) {
+            val identifier1 = nullable.identifier()
+            val paren1 = nullable.parenthesizedType()
+            val array1 = nullable.arrayType()
+            val baseType = if (identifier1 != null) {
+                parseUserType(annotations, identifier1)
+            } else if (paren1 != null) {
+                parseType(paren1.type())
+            } else if (array1 != null) {
+                parseType(array1.type())
+            } else {
+                throw InternalError("Expected NullableTypeContext ($nullable) to have userType, parenthesizedType or arrayType")
+            }
+            NullableType(annotations, baseType)
+        } else if (identifier != null) {
+            parseUserType(annotations, identifier)
+        } else {
+            throw InternalError("Expected TypeContext ($type) to have functionType, parenthesizedType, arrayType, nullableType or userType")
+        }
+    }
+    
+    private fun parseFunctionType(annotations: Annotations, ctx: AprlParser.FunctionTypeContext): FunctionType {
+        val parameters = ArrayList<Type>()
+        for (functionTP in ctx.functionTypeParameters().type() ?: emptyList()) {
+            parameters.add(parseType(functionTP))
+        }
+        val returnType = parseType(ctx.type())
+        return FunctionType(annotations, parameters, returnType)
+    }
+    
+    private fun parseUserType(annotations: Annotations, ctx: AprlParser.IdentifierContext): Identifier {
+        return Identifier(annotations, ctx.simpleIdentifier().map { it.text }.toMutableList())
+    }
+    
+    private fun parseTypeArguments(ctx: AprlParser.TypeArgumentsContext): TypeArgument {
+        val typeProjections = ArrayList<TypeProjection>()
+        for (typeProjection in ctx.typeProjection()) {
+            typeProjections.add(parseTypeProjection(typeProjection))
+        }
+        return TypeArgument(typeProjections)
+    }
+    
+    private fun parseTypeProjection(ctx: AprlParser.TypeProjectionContext): TypeProjection {
+        val typeProjectionModifierList = ctx.typeProjectionModifierList()
+        val annotations: Annotations
+        val typeProjectionModifiers: ArrayList<TypeProjectionModifier>
+        if (typeProjectionModifierList == null) {
+            annotations = Annotations()
+            typeProjectionModifiers = arrayListOf()
+        } else {
+            annotations = annotationsFromTypeProjectionModifierList(ctx.typeProjectionModifierList())
+            typeProjectionModifiers =
+                typeProjectionModifiersFromTypeProjectionModifierList(ctx.typeProjectionModifierList())
+        }
+        return TypeProjection(annotations, typeProjectionModifiers, ctx.type().safe { parseType(this@safe) })
+    }
+    
+    private fun annotationsFromTypeProjectionModifierList(ctx: AprlParser.TypeProjectionModifierListContext): Annotations {
+        val annotations = Annotations()
+        for (modifier in ctx.typeProjectionModifier()) {
+            val annotation = modifier.annotation()
+            if (annotation != null) {
+                annotations.addAll(parseAnnotation(annotation))
+            }
+        }
+        return annotations
+    }
+    
+    private fun typeProjectionModifiersFromTypeProjectionModifierList(ctx: AprlParser.TypeProjectionModifierListContext): ArrayList<TypeProjectionModifier> {
+        val typeProjectionModifiers = ArrayList<TypeProjectionModifier>()
+        for (modifier in ctx.typeProjectionModifier()) {
+            val typeProjectionModifier = modifier.varianceModifier()
+            if (typeProjectionModifier != null) {
+                typeProjectionModifiers.add(parseVarianceModifier(typeProjectionModifier))
+            }
+        }
+        return typeProjectionModifiers
+    }
+    
+    private fun parseVarianceModifier(ctx: AprlParser.VarianceModifierContext): TypeProjectionModifier {
+        val sub = ctx.SUB_()
+        val sup = ctx.SUPER()
+        return if (sub != null) {
+            TypeProjectionModifier.SUB
+        } else if (sup != null) {
+            TypeProjectionModifier.SUPER
+        } else {
+            throw InternalError("Expected VarianceModifierContext ($ctx) to be SUB_ or SUPER")
+        }
+    }
+    
+    private fun parseAnnotations(ctx: AprlParser.AnnotationsContext): Annotations {
+        val annotations = Annotations()
+        for (annotation in ctx.annotation()) {
+            annotations.addAll(parseAnnotation(annotation))
+        }
+        return annotations
+    }
+    
+    private fun parseAnnotation(ctx: AprlParser.AnnotationContext): Annotations {
+        return if (ctx.LSQUARE() != null) {
+            parseMultiAnnotation(ctx.unescapedAnnotation())
+        } else {
+            arrayListOf(parseSingleAnnotation(ctx.unescapedAnnotation(0)))
+        }
+    }
+    
+    private fun parseMultiAnnotation(annotations: List<AprlParser.UnescapedAnnotationContext>): Annotations {
+        TODO()
+    }
+    
+    private fun parseSingleAnnotation(annotation: AprlParser.UnescapedAnnotationContext): Pair<Class<*>, ValueArguments> {
+        TODO()
     }
     
     private fun parseTopLevelInterface(ctx: AprlParser.InterfaceDeclarationContext) {
@@ -350,8 +551,6 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     
     override fun enterDelegationSpecifier(ctx: AprlParser.DelegationSpecifierContext) {}
     
-    override fun enterConstructorInvocation(ctx: AprlParser.ConstructorInvocationContext) {}
-    
     override fun enterValueArguments(ctx: AprlParser.ValueArgumentsContext) {}
     
     override fun enterValueArgument(ctx: AprlParser.ValueArgumentContext) {}
@@ -403,10 +602,6 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     override fun enterArrayType(ctx: AprlParser.ArrayTypeContext) {}
     
     override fun enterNullableType(ctx: AprlParser.NullableTypeContext) {}
-    
-    override fun enterUserType(ctx: AprlParser.UserTypeContext) {}
-    
-    override fun enterSimpleUserType(ctx: AprlParser.SimpleUserTypeContext) {}
     
     override fun enterStructDeclaration(ctx: AprlParser.StructDeclarationContext) {}
     
