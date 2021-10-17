@@ -1,6 +1,12 @@
 package aprl.compiler.jvm
 
-abstract class Type(val annotations: Annotations)
+abstract class Type(val annotations: Annotations) {
+    
+    infix fun instanceof(type: Class<*>): Boolean {
+        TODO()
+    }
+    
+}
 
 class FunctionType(annotations: Annotations, val types: MutableList<Type>, val returnType: Type) : Type(annotations)
 class ArrayType(annotations: Annotations, val type: Type) : Type(annotations)

@@ -1,4 +1,4 @@
-// Generated from /Users/erik/Desktop/IntelliJ/AprlC/src/aprl/AprlParser.g4 by ANTLR 4.9.1
+// Generated from C:/Users/erik-/IdeaProjects/AprlC/src/aprl\AprlParser.g4 by ANTLR 4.9.1
 package aprl;
 
 import org.antlr.v4.runtime.ParserRuleContext;
@@ -2051,6 +2051,18 @@ public class AprlParserBaseListener implements AprlParserListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitCallSuffix(AprlParser.CallSuffixContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterLambdaCallSuffix(AprlParser.LambdaCallSuffixContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitLambdaCallSuffix(AprlParser.LambdaCallSuffixContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *

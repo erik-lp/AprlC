@@ -1,4 +1,4 @@
-// Generated from /Users/erik/Desktop/IntelliJ/AprlC/src/aprl/AprlParser.g4 by ANTLR 4.9.1
+// Generated from C:/Users/erik-/IdeaProjects/AprlC/src/aprl\AprlParser.g4 by ANTLR 4.9.1
 package aprl;
 import org.antlr.v4.runtime.tree.ParseTreeListener;
 
@@ -1707,6 +1707,16 @@ public interface AprlParserListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitCallSuffix(AprlParser.CallSuffixContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link AprlParser#lambdaCallSuffix}.
+	 * @param ctx the parse tree
+	 */
+	void enterLambdaCallSuffix(AprlParser.LambdaCallSuffixContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link AprlParser#lambdaCallSuffix}.
+	 * @param ctx the parse tree
+	 */
+	void exitLambdaCallSuffix(AprlParser.LambdaCallSuffixContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link AprlParser#annotatedLambda}.
 	 * @param ctx the parse tree

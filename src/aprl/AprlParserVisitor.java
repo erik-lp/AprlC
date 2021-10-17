@@ -1,4 +1,4 @@
-// Generated from /Users/erik/Desktop/IntelliJ/AprlC/src/aprl/AprlParser.g4 by ANTLR 4.9.1
+// Generated from C:/Users/erik-/IdeaProjects/AprlC/src/aprl\AprlParser.g4 by ANTLR 4.9.1
 package aprl;
 import org.antlr.v4.runtime.tree.ParseTreeVisitor;
 
@@ -1030,6 +1030,12 @@ public interface AprlParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitCallSuffix(AprlParser.CallSuffixContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link AprlParser#lambdaCallSuffix}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitLambdaCallSuffix(AprlParser.LambdaCallSuffixContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link AprlParser#annotatedLambda}.
 	 * @param ctx the parse tree

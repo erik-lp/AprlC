@@ -86,7 +86,7 @@ annotatedDelegationSpecifier
     : annotations? delegationSpecifier;
 
 delegationSpecifier
-    : identifier valueArguments?;
+    : identifier typeArguments? valueArguments?;
 
 interfaceDelegationSpecifiers
     : annotatedInterfaceDelegationSpecifier (NL* COMMA NL* annotatedInterfaceDelegationSpecifier)*;
@@ -531,10 +531,10 @@ assignmentOperator
     : NL* (ASSIGN | DEFINE | ADD_ASSIGN | SUB_ASSIGN | MUL_ASSIGN | DIV_ASSIGN | MOD_ASSIGN | EXP_ASSIGN | CONJ_ASSIGN | DISJ_ASSIGN | XOR_ASSIGN | ELVIS_ASSIGN) NL*;
 
 disjunctionOperator
-    : NL* (DISJ | OR) NL*;
+    : NL* DISJ NL*;
 
 conjunctionOperator
-    : NL* (CONJ | AND) NL*;
+    : NL* CONJ NL*;
 
 equalityOperator
     : NL* (EQUAL | NEQUAL) NL*;
@@ -579,7 +579,7 @@ unaryPrefix
     : annotation | labelDefinition | prefixUnaryOperator;
 
 prefixUnaryOperator
-    : INCR | DECR | ADD | SUB | EXCL | NOT | DOUBLE_AT;
+    : INCR | DECR | ADD | SUB | EXCL | DOUBLE_AT;
 
 unaryPostfix
     : postfixUnaryOperator | typeArguments | callSuffix | indexingSuffix | navigationSuffix;

@@ -3,6 +3,7 @@ package aprl.compiler
 import aprl.AprlParser
 import aprl.compiler.jvm.Annotations
 import aprl.compiler.jvm.Modifier
+import aprl.compiler.jvm.Type
 import org.antlr.v4.runtime.ParserRuleContext
 import java.util.*
 
@@ -95,10 +96,24 @@ fun faultyIdentifier(identifiers: List<AprlParser.SimpleIdentifierContext>): Apr
 val ParserRuleContext.position: Pair<Int, Int>
     get() = Pair(start.line, start.charPositionInLine + 1)
 
-fun <A> Pair<A, A>.plus(a: A, b: A, add: (A, A) -> A): Pair<A, A> {
-    return Pair(add(first, a), add(second, b))
+fun Pair<Int, Int>.plus(a: Int, b: Int): Pair<Int, Int> {
+    return Pair(first + a, second + b)
 }
 
 inline fun <reified T> List<T>.asArray(): Array<T> = Array(this.size) {
     this[it]
+}
+
+fun <A, B> List<A>.pair(other: List<B>): List<Pair<A, B>> {
+    if (size != other.size) {
+        throw UnsupportedOperationException("Cannot pair lists of unlike sizes")
+    }
+    return mapIndexed { i, it -> Pair(it, other[i]) }
+}
+
+fun <A, B> List<A>.pair(other: Array<B>): List<Pair<A, B>> {
+    if (size != other.size) {
+        throw UnsupportedOperationException("Cannot pair lists of unlike sizes")
+    }
+    return mapIndexed { i, it -> Pair(it, other[i]) }
 }

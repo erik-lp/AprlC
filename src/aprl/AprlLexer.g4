@@ -81,10 +81,6 @@ RETURN_AT: 'return@' Identifier;
 BREAK_AT: 'break@' Identifier;
 CONTINUE_AT: 'continue@' Identifier;
 
-OR: 'or';
-AND: 'and';
-NOT: 'not';
-
 AS: 'as';
 AS_QUEST: 'as?';
 IS: 'is';

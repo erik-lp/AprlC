@@ -6,6 +6,8 @@ import aprl.compiler.jvm.*
 import aprl.compiler.jvm.Annotation
 import aprl.compiler.jvm.Enum
 import java.io.File
+import java.io.Serializable
+import java.lang.reflect.Modifier
 import java.util.*
 import kotlin.jvm.Throws
 
@@ -106,6 +108,9 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
         val pkg = loadPackage(importIdentifier)
         val clazz = loadCompleteClass(importIdentifier)
         if (pkg != null) {
+            if (imports.any { it.pkg == pkg }) {
+                WARN(simpleName, identifier.position, "Redundant import")
+            }
             imports.add(Import().also { it.pkg = pkg })
         } else if (clazz != null) {
             importEverything(clazz)
@@ -149,12 +154,19 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     ) {
         val pkg = from.name
         for ((subIdentifier, alias) in elements) {
+            val aliasString = alias?.simpleIdentifier()?.text
             val clazz = loadCompleteClass("$pkg.${subIdentifier.text}") ?: throw Error(
                 simpleName,
                 subIdentifier.position,
                 "Unresolved reference: '${subIdentifier.text}'"
             )
-            imports.add(Import().also { it.clazz = clazz; it.alias = alias?.simpleIdentifier()?.text })
+            if (imports.any { it.clazz == clazz && it.alias == aliasString }) {
+                WARN(simpleName, subIdentifier.position, "Redundant import")
+            }
+            if (clazz.simpleName == aliasString) {
+                WARN(simpleName, alias!!.position, "Redundant import alias")
+            }
+            imports.add(Import().also { it.clazz = clazz; it.alias = aliasString })
         }
     }
     
@@ -171,14 +183,19 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
         val method = loadMethod(clazz, identifier.text)
         val field = loadField(clazz, identifier.text)
         if (method != null) {
+            if (imports.any { it.method == method }) {
+                WARN(simpleName, identifier.position, "Redundant import")
+            }
             imports.add(Import().also { it.method = method; it.alias = alias?.simpleIdentifier()?.text })
         }
         if (field != null) {
-            if (this.imports.any { it.field?.name == field.name && it.field != field }) {
+            if (imports.any { it.field?.name == field.name && it.field != field }) {
                 throw Error(simpleName, identifier.position, "Field by name '${field.name}' is already defined in an import")
-            } else {
-                imports.add(Import().also { it.field = field; it.alias = alias?.simpleIdentifier()?.text })
             }
+            if (imports.any { it.field == field }) {
+                WARN(simpleName, identifier.position, "Redundant import")
+            }
+            imports.add(Import().also { it.field = field; it.alias = alias?.simpleIdentifier()?.text })
         }
         if (method == null && field == null) {
             throw Error(simpleName, identifier.position, "Unresolved reference: '${identifier.text}'")
@@ -204,8 +221,11 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
         val pkg = loadPackage(importIdentifier)
         val clazz = loadCompleteClass(importIdentifier)
         if (pkg != null) {
-            throw Error(simpleName, identifiers.last().position, "Namespaces cannot be imported")
+            throw Error(simpleName, identifiers[0].position, "Namespaces cannot be imported")
         } else if (clazz != null) {
+            if (imports.any { it.clazz == clazz && it.alias == alias }) {
+                WARN(simpleName, identifiers[0].position, "Redundant import")
+            }
             if (clazz.simpleName == alias) {
                 WARN(simpleName, importAlias!!.position, "Redundant import alias")
             }
@@ -261,13 +281,41 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
                 val annotations = delegation.annotations().safe { parseAnnotations(this@safe) } ?: arrayListOf()
                 val superClassOrInterface = loadImportedClass(identifier)
                 val valueArguments = delegation.delegationSpecifier().valueArguments().safe { parseValueArguments(this@safe) }
+                if (superClasses.any { it.second == superClassOrInterface }) {
+                    throw Error(simpleName, identifier.position, "Supertype '${superClassOrInterface.simpleName}' appears twice")
+                }
+                checkClassExtendability(superClassOrInterface, identifier.position)
                 if (!superClassOrInterface.isInterface) {
                     if (superClasses.any { !it.second.isInterface }) {
-                        throw Error(simpleName, identifier.position, "Class cannot extend multiple classes")
+                        throw Error(simpleName, identifier.position, "Class cannot extend more than one class")
                     }
                     if (valueArguments == null) {
-                        val add: (Int, Int) -> Int = { a, b -> a + b }
-                        throw Error(simpleName, identifier.position.plus(0, identifier.text.length, add), "This type has a constructor and thus must be initialized here")
+                        throw Error(simpleName, identifier.position.plus(0, identifier.text.length), "This type has a constructor and thus must be initialized here")
+                    }
+                    // TODO: check correctness of value arguments
+                }
+                val superTypeParameters = superClassOrInterface.typeParameters
+                if (superTypeParameters.isNotEmpty()) {
+                    val ownTypeParameters = delegation.delegationSpecifier().typeArguments()?.typeProjection() ?: throw Error(simpleName, identifier.position.plus(0, identifier.text.length), "Expected ${superTypeParameters.size} type arguments for ${superClassOrInterface.name}")
+                    val a = ownTypeParameters.size
+                    val b = superTypeParameters.size
+                    if (a < b) {
+                        throw Error(simpleName, ownTypeParameters.last().position, "Expecting ${b - a} more type arguments for ${superClassOrInterface.name}")
+                    } else if (a > b) {
+                        throw Error(simpleName, ownTypeParameters[b].position, "Excessive type argument")
+                    } else {
+                        for ((typeProjection, superTypeParameter) in ownTypeParameters.pair(superTypeParameters)) {
+                            val varianceModifier = typeProjection.typeProjectionModifierList()?.typeProjectionModifier()?.firstOrNull { it.varianceModifier() != null }
+                            if (typeProjection.QUEST() != null) { // wildcard
+                                throw Error(simpleName, typeProjection.position, "Projections are not allowed here")
+                            } else if (varianceModifier != null) { // variance modifier(s)
+                                throw Error(simpleName, varianceModifier.position, "Projections are not allowed here")
+                            } else { // explicit type
+                                val bounds = superTypeParameter.bounds
+                                val type: Type = parseType(typeProjection.type())
+                                // TODO: check if type conforms to bounds
+                            }
+                        }
                     }
                 }
                 superClasses.add(Triple(annotations, superClassOrInterface, valueArguments ?: arrayListOf()))
@@ -275,6 +323,16 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
         }
         // TODO: class members
         topLevelObjects.add(clazz)
+    }
+    
+    private fun checkClassExtendability(clazz: Class<*>, position: Pair<Int, Int>) {
+        if (clazz.isEnum) {
+            throw Error(simpleName, position, "Cannot inherit from enum '${clazz.name}'")
+        } else if (clazz.isRecord) {
+            throw Error(simpleName, position, "Cannot inherit from document '${clazz.name}'")
+        } else if (Modifier.isFinal(clazz.modifiers)) {
+            throw Error(simpleName, position, "'${clazz.name}' is final and cannot be inherited from")
+        }
     }
     
     private fun loadImportedClass(identifier: AprlParser.IdentifierContext): Class<*> {
@@ -375,7 +433,7 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
             val paren1 = nullable.parenthesizedType()
             val array1 = nullable.arrayType()
             val baseType = if (identifier1 != null) {
-                parseUserType(annotations, identifier1)
+                Identifier(annotations, identifier1.simpleIdentifier().map { it.text }.toMutableList())
             } else if (paren1 != null) {
                 parseType(paren1.type())
             } else if (array1 != null) {
@@ -385,7 +443,7 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
             }
             NullableType(annotations, baseType)
         } else if (identifier != null) {
-            parseUserType(annotations, identifier)
+            Identifier(annotations, identifier.simpleIdentifier().map { it.text }.toMutableList())
         } else {
             throw InternalError("Expected TypeContext ($type) to have functionType, parenthesizedType, arrayType, nullableType or userType")
         }
@@ -398,10 +456,6 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
         }
         val returnType = parseType(ctx.type())
         return FunctionType(annotations, parameters, returnType)
-    }
-    
-    private fun parseUserType(annotations: Annotations, ctx: AprlParser.IdentifierContext): Identifier {
-        return Identifier(annotations, ctx.simpleIdentifier().map { it.text }.toMutableList())
     }
     
     private fun parseTypeArguments(ctx: AprlParser.TypeArgumentsContext): TypeArgument {
