@@ -1,4 +1,4 @@
-package aprl.lib
+package aprl.lang
 
 sealed interface Function
 

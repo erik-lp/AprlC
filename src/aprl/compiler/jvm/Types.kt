@@ -1,17 +1,35 @@
 package aprl.compiler.jvm
 
-abstract class Type(val annotations: Annotations) {
-    
-    infix fun instanceof(type: Class<*>): Boolean {
-        TODO()
-    }
-    
+import aprl.AprlParser
+import aprl.compiler.AprlListener
+
+abstract class Type(val parent: AprlListener, val annotations: Annotations) {
+    abstract fun toJava(): Class<*>
 }
 
-class FunctionType(annotations: Annotations, val types: MutableList<Type>, val returnType: Type) : Type(annotations)
-class ArrayType(annotations: Annotations, val type: Type) : Type(annotations)
-class NullableType(annotations: Annotations, val type: Type) : Type(annotations)
-class Identifier(annotations: Annotations, val identifiers: MutableList<String>) : Type(annotations)
+class FunctionType(parent: AprlListener, annotations: Annotations, val types: MutableList<Type>, val returnType: Type) : Type(parent, annotations) {
+    override fun toJava(): Class<*> {
+        TODO("Not yet implemented")
+    }
+}
+
+class ArrayType(parent: AprlListener, annotations: Annotations, val type: Type) : Type(parent, annotations) {
+    override fun toJava(): Class<*> {
+        TODO("Not yet implemented")
+    }
+}
+
+class NullableType(parent: AprlListener, annotations: Annotations, val type: Type) : Type(parent, annotations) {
+    override fun toJava(): Class<*> {
+        TODO("Not yet implemented")
+    }
+}
+
+class Identifier(parent: AprlListener, annotations: Annotations, val identifiers: MutableList<AprlParser.SimpleIdentifierContext>, val typeArguments: TypeArgument?) : Type(parent, annotations) {
+    override fun toJava(): Class<*> {
+        return parent.loadImportedClass(identifiers)
+    }
+}
 
 class ReceiverType {
     var annotations: Annotations? = null

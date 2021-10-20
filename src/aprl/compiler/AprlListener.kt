@@ -6,7 +6,6 @@ import aprl.compiler.jvm.*
 import aprl.compiler.jvm.Annotation
 import aprl.compiler.jvm.Enum
 import java.io.File
-import java.io.Serializable
 import java.lang.reflect.Modifier
 import java.util.*
 import kotlin.jvm.Throws
@@ -34,9 +33,9 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
         ?: fileName.replaceAfterLast(".", SUFFIX)
     
     private val namespace = Namespace()
-    private val imports = ArrayList<Import>()
+    private val imports = mutableListOf<Import>()
     
-    private val topLevelObjects = ArrayList<TopLevelObject>()
+    private val topLevelObjects = mutableListOf<TopLevelObject>()
     
     fun compile() {}
     
@@ -52,7 +51,7 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     
     private fun namespaceMatchesLocation(ctx: AprlParser.NamespaceHeaderContext, filePath: String): Boolean {
         val identifier = ctx.identifier()
-        val simpleIdentifiers = ArrayList(identifier.simpleIdentifier().reversed())
+        val simpleIdentifiers = identifier.simpleIdentifier().reversed().toMutableList()
         val subFolders = LinkedList(filePath.split(File.separator).reversed()).also { it.pop() }
         for (id in simpleIdentifiers) {
             if (id.Identifier().symbol.text != subFolders.pop()) {
@@ -66,6 +65,9 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
         for (importIdentifier in ctx.importIdentifier()) {
             parseImportIdentifier(importIdentifier)
         }
+        val loadThis = aprl.lang.Function0 { 6 }
+        imports.add(Import().also { it.pkg = loadPackage("java.lang") ?: throw InternalError("Package java.lang not found in classpath") })
+        imports.add(Import().also { it.pkg = loadPackage("aprl.lang") ?: throw InternalError("Package aprl.lang not found in classpath") })
     }
     
     private fun parseImportIdentifier(ctx: AprlParser.ImportIdentifierContext) {
@@ -80,7 +82,7 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
                     parseAllImport(ctx.identifier())
                 } else {
                     if (ctx.subImportIdentifier().size > 1) { // multiple import (using foo.[a, b])
-                        val elementsInBrackets = ArrayList<Pair<AprlParser.SimpleIdentifierContext, AprlParser.ImportAliasContext?>>()
+                        val elementsInBrackets = mutableListOf<Pair<AprlParser.SimpleIdentifierContext, AprlParser.ImportAliasContext?>>()
                         for (subImportIdentifier in ctx.subImportIdentifier()) {
                             elementsInBrackets.add(
                                 Pair(
@@ -270,59 +272,74 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     
     private fun parseTopLevelClass(ctx: AprlParser.ClassDeclarationContext) {
         val clazz = Clazz(ctx.simpleIdentifier().text)
-        clazz.modifiers = ctx.modifierList().safe { modifiersFromModifierList(this@safe) } ?: arrayListOf()
-        clazz.annotations = ctx.modifierList().safe { annotationsFromModifierList(this@safe) } ?: arrayListOf()
-        clazz.typeParameters = ctx.typeParameters().safe { parseTypeParameters(this@safe) } ?: arrayListOf()
+        clazz.modifiers = ctx.modifierList().safe { modifiersFromModifierList(this@safe) } ?: mutableListOf()
+        clazz.annotations = ctx.modifierList().safe { annotationsFromModifierList(this@safe) } ?: mutableListOf()
+        clazz.typeParameters = ctx.typeParameters().safe { parseTypeParameters(this@safe) } ?: mutableListOf()
         val delegations = ctx.delegationSpecifiers()
         if (delegations != null) {
-            val superClasses = ArrayList<Triple<Annotations, Class<*>, ValueArguments>>()
+            val superClasses = mutableListOf<Triple<Annotations, Class<*>, ValueArguments>>()
             for (delegation in delegations.annotatedDelegationSpecifier()) {
-                val identifier = delegation.delegationSpecifier().identifier()
-                val annotations = delegation.annotations().safe { parseAnnotations(this@safe) } ?: arrayListOf()
-                val superClassOrInterface = loadImportedClass(identifier)
-                val valueArguments = delegation.delegationSpecifier().valueArguments().safe { parseValueArguments(this@safe) }
-                if (superClasses.any { it.second == superClassOrInterface }) {
-                    throw Error(simpleName, identifier.position, "Supertype '${superClassOrInterface.simpleName}' appears twice")
+                val delegationSpecifier = delegation.delegationSpecifier()
+                val identifier = delegationSpecifier.identifier()
+                val superClass = loadImportedClass(identifier)
+                val valueArguments = delegationSpecifier.valueArguments().safe { parseValueArguments(this@safe) }
+                if (superClasses.any { it.second == superClass }) {
+                    throw Error(simpleName, identifier.position, "Supertype '${superClass.simpleName}' appears twice")
                 }
-                checkClassExtendability(superClassOrInterface, identifier.position)
-                if (!superClassOrInterface.isInterface) {
+                checkClassExtendability(superClass, identifier.position)
+                if (!superClass.isInterface) {
                     if (superClasses.any { !it.second.isInterface }) {
-                        throw Error(simpleName, identifier.position, "Class cannot extend more than one class")
+                        throw Error(simpleName, identifier.position, "Multiple inheritance is not allowed")
                     }
                     if (valueArguments == null) {
-                        throw Error(simpleName, identifier.position.plus(0, identifier.text.length), "This type has a constructor and thus must be initialized here")
+                        val last = identifier.simpleIdentifier().last()
+                        throw Error(simpleName, last.position.plus(0, last.text.length), "This type has a constructor and thus must be initialized here")
                     }
                     // TODO: check correctness of value arguments
                 }
-                val superTypeParameters = superClassOrInterface.typeParameters
-                if (superTypeParameters.isNotEmpty()) {
-                    val ownTypeParameters = delegation.delegationSpecifier().typeArguments()?.typeProjection() ?: throw Error(simpleName, identifier.position.plus(0, identifier.text.length), "Expected ${superTypeParameters.size} type arguments for ${superClassOrInterface.name}")
-                    val a = ownTypeParameters.size
-                    val b = superTypeParameters.size
-                    if (a < b) {
-                        throw Error(simpleName, ownTypeParameters.last().position, "Expecting ${b - a} more type arguments for ${superClassOrInterface.name}")
-                    } else if (a > b) {
-                        throw Error(simpleName, ownTypeParameters[b].position, "Excessive type argument")
-                    } else {
-                        for ((typeProjection, superTypeParameter) in ownTypeParameters.pair(superTypeParameters)) {
-                            val varianceModifier = typeProjection.typeProjectionModifierList()?.typeProjectionModifier()?.firstOrNull { it.varianceModifier() != null }
-                            if (typeProjection.QUEST() != null) { // wildcard
-                                throw Error(simpleName, typeProjection.position, "Projections are not allowed here")
-                            } else if (varianceModifier != null) { // variance modifier(s)
-                                throw Error(simpleName, varianceModifier.position, "Projections are not allowed here")
-                            } else { // explicit type
-                                val bounds = superTypeParameter.bounds
-                                val type: Type = parseType(typeProjection.type())
-                                // TODO: check if type conforms to bounds
-                            }
-                        }
-                    }
-                }
-                superClasses.add(Triple(annotations, superClassOrInterface, valueArguments ?: arrayListOf()))
+                checkTypeArguments(superClass, delegationSpecifier.typeArguments(), false, identifier.simpleIdentifier().last())
+                superClasses.add(Triple(delegation.annotations().safe { parseAnnotations(this@safe) } ?: mutableListOf(), superClass, valueArguments ?: mutableListOf()))
             }
         }
         // TODO: class members
         topLevelObjects.add(clazz)
+    }
+    
+    private fun checkTypeArguments(clazz: Class<*>, typeArguments: AprlParser.TypeArgumentsContext?, projectionsAllowed: Boolean, lastIdentifier: AprlParser.SimpleIdentifierContext) {
+        val superTypeParameters = clazz.typeParameters
+        val b = superTypeParameters.size
+        val req = if (b == 1) "One type argument" else "$b type arguments"
+        if (superTypeParameters.isNotEmpty()) {
+            if (typeArguments?.typeProjection()?.isNotEmpty() != true) {
+                throw Error(simpleName, lastIdentifier.position.plus(0, lastIdentifier.text.length), "$req expected for ${clazz.name}")
+            }
+            if (typeArguments.typeProjection().size != b) {
+                throw Error(simpleName, typeArguments.position, "$req expected for '${clazz.name}'")
+            } else {
+                for ((typeProjection, superTypeParameter) in typeArguments.typeProjection().pair(superTypeParameters)) {
+                    val varianceModifier = typeProjection.typeProjectionModifierList()?.typeProjectionModifier()?.firstOrNull { it.varianceModifier() != null }
+                    if (typeProjection.QUEST() != null) {
+                        if (!projectionsAllowed) {
+                            throw Error(simpleName, typeProjection.position, "Projections are not allowed here")
+                        }
+                    } else if (varianceModifier != null) {
+                        if (!projectionsAllowed) {
+                            throw Error(simpleName, varianceModifier.position, "Projections are not allowed here")
+                        }
+                    } else {
+                        val bounds = superTypeParameter.bounds
+                        val type: Type = parseType(typeProjection.type())
+                        val classOfType = type.toJava()
+                        println("Type argument: $classOfType")
+                        // TODO: check if type conforms to bounds
+                    }
+                }
+            }
+        } else {
+            if (typeArguments?.typeProjection()?.isNotEmpty() == true) {
+                throw Error(simpleName, typeArguments.position, "No type arguments expected for '${clazz.name}'")
+            }
+        }
     }
     
     private fun checkClassExtendability(clazz: Class<*>, position: Pair<Int, Int>) {
@@ -336,19 +353,23 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     }
     
     private fun loadImportedClass(identifier: AprlParser.IdentifierContext): Class<*> {
-        val first = identifier.simpleIdentifier(0)
-        val clazz = loadCompleteClass(identifier.simpleIdentifier().joinToString(".") { it.text })
+        return loadImportedClass(identifier.simpleIdentifier())
+    }
+    
+    fun loadImportedClass(identifiers: List<AprlParser.SimpleIdentifierContext>): Class<*> {
+        val first = identifiers[0]
+        val clazz = loadCompleteClass(identifiers.joinToString(".") { it.text })
         if (clazz != null) {
             return clazz
         }
         val baseClass = loadImportedClass(first) ?: throw Error(simpleName, first.position, "Unresolved reference: '${first.text}'")
-        val suffix = if (identifier.simpleIdentifier().size == 1) "" else "." + identifier.simpleIdentifier().drop(1).joinToString(".") { it.text }
+        val suffix = if (identifiers.size == 1) "" else "." + identifiers.drop(1).joinToString(".") { it.text }
         val completeString = baseClass.name + suffix
         val completeClass = loadCompleteClass(completeString)
         if (completeClass == null) {
             var faulty: AprlParser.SimpleIdentifierContext? = null
-            val total = ArrayList<AprlParser.SimpleIdentifierContext>()
-            for (some in identifier.simpleIdentifier().drop(1)) {
+            val total = mutableListOf<AprlParser.SimpleIdentifierContext>()
+            for (some in identifiers.drop(1)) {
                 total.add(some)
                 val str = baseClass.name + "." + total.joinToString(".") { it.text }
                 println("Checking existence of $str")
@@ -357,8 +378,7 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
                     break
                 }
             }
-            faulty ?: throw InternalError("loadCompleteClass() was null although it should not have been (${total.joinToString(".")})")
-            throw Error(simpleName, faulty.position, "Unresolved reference: '${faulty.text}'")
+            throw Error(simpleName, faulty!!.position, "Unresolved reference: '${faulty.text}'")
         }
         return completeClass
     }
@@ -386,15 +406,16 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     }
     
     private fun parseValueArguments(ctx: AprlParser.ValueArgumentsContext): ValueArguments {
-        TODO()
+        // TODO: parseValueArguments()
+        return arrayListOf()
     }
     
-    private fun parseTypeParameters(ctx: AprlParser.TypeParametersContext): ArrayList<TypeParameter> {
+    private fun parseTypeParameters(ctx: AprlParser.TypeParametersContext): MutableList<TypeParameter> {
         return parseTypeParameters(ctx.typeParameter())
     }
     
-    private fun parseTypeParameters(parameters: List<AprlParser.TypeParameterContext>): ArrayList<TypeParameter> {
-        val actualParameters = ArrayList<TypeParameter>()
+    private fun parseTypeParameters(parameters: List<AprlParser.TypeParameterContext>): MutableList<TypeParameter> {
+        val actualParameters = mutableListOf<TypeParameter>()
         for (param in parameters) {
             actualParameters.add(parseTypeParameter(param))
         }
@@ -407,8 +428,8 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
         return TypeParameter(name, constraints.asArray())
     }
     
-    private fun parseTypeConstraints(constraints: List<AprlParser.TypeContext>): ArrayList<Type> {
-        val actualConstraints = ArrayList<Type>()
+    private fun parseTypeConstraints(constraints: List<AprlParser.TypeContext>): MutableList<Type> {
+        val actualConstraints = mutableListOf<Type>()
         for (constraint in constraints) {
             actualConstraints.add(parseType(constraint))
         }
@@ -416,24 +437,28 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     }
     
     private fun parseType(type: AprlParser.TypeContext): Type {
-        val annotations = parseAnnotations(type.annotations())
+        val annotations = type.annotations().safe { parseAnnotations(this@safe) } ?: mutableListOf()
         val function = type.functionType()
         val paren = type.parenthesizedType()
         val array = type.arrayType()
         val nullable = type.nullableType()
         val identifier = type.identifier()
+        val typeArguments = type.typeArguments()?.safe { parseTypeArguments(this@safe) }
         return if (function != null) {
             parseFunctionType(annotations, function)
         } else if (paren != null) {
             parseType(paren.type())
         } else if (array != null) {
-            ArrayType(annotations, parseType(array.type()))
+            ArrayType(this, annotations, parseType(array.type()))
         } else if (nullable != null) {
             val identifier1 = nullable.identifier()
+            val typeArguments1 = nullable.typeArguments()?.safe { parseTypeArguments(this@safe) }
             val paren1 = nullable.parenthesizedType()
             val array1 = nullable.arrayType()
             val baseType = if (identifier1 != null) {
-                Identifier(annotations, identifier1.simpleIdentifier().map { it.text }.toMutableList())
+                val clazz = loadImportedClass(identifier1)
+                checkTypeArguments(clazz, nullable.typeArguments(), true, identifier1.simpleIdentifier().last())
+                Identifier(this, annotations, identifier1.simpleIdentifier().toMutableList(), typeArguments1)
             } else if (paren1 != null) {
                 parseType(paren1.type())
             } else if (array1 != null) {
@@ -441,25 +466,27 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
             } else {
                 throw InternalError("Expected NullableTypeContext ($nullable) to have userType, parenthesizedType or arrayType")
             }
-            NullableType(annotations, baseType)
+            NullableType(this, annotations, baseType)
         } else if (identifier != null) {
-            Identifier(annotations, identifier.simpleIdentifier().map { it.text }.toMutableList())
+            val clazz = loadImportedClass(identifier)
+            checkTypeArguments(clazz, type.typeArguments(), true, identifier.simpleIdentifier().last())
+            Identifier(this, annotations, identifier.simpleIdentifier().toMutableList(), typeArguments)
         } else {
             throw InternalError("Expected TypeContext ($type) to have functionType, parenthesizedType, arrayType, nullableType or userType")
         }
     }
     
     private fun parseFunctionType(annotations: Annotations, ctx: AprlParser.FunctionTypeContext): FunctionType {
-        val parameters = ArrayList<Type>()
+        val parameters = mutableListOf<Type>()
         for (functionTP in ctx.functionTypeParameters().type() ?: emptyList()) {
             parameters.add(parseType(functionTP))
         }
         val returnType = parseType(ctx.type())
-        return FunctionType(annotations, parameters, returnType)
+        return FunctionType(this, annotations, parameters, returnType)
     }
     
     private fun parseTypeArguments(ctx: AprlParser.TypeArgumentsContext): TypeArgument {
-        val typeProjections = ArrayList<TypeProjection>()
+        val typeProjections = mutableListOf<TypeProjection>()
         for (typeProjection in ctx.typeProjection()) {
             typeProjections.add(parseTypeProjection(typeProjection))
         }
@@ -469,10 +496,10 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     private fun parseTypeProjection(ctx: AprlParser.TypeProjectionContext): TypeProjection {
         val typeProjectionModifierList = ctx.typeProjectionModifierList()
         val annotations: Annotations
-        val typeProjectionModifiers: ArrayList<TypeProjectionModifier>
+        val typeProjectionModifiers: MutableList<TypeProjectionModifier>
         if (typeProjectionModifierList == null) {
-            annotations = Annotations()
-            typeProjectionModifiers = arrayListOf()
+            annotations = mutableListOf()
+            typeProjectionModifiers = mutableListOf()
         } else {
             annotations = annotationsFromTypeProjectionModifierList(ctx.typeProjectionModifierList())
             typeProjectionModifiers =
@@ -482,7 +509,7 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     }
     
     private fun annotationsFromTypeProjectionModifierList(ctx: AprlParser.TypeProjectionModifierListContext): Annotations {
-        val annotations = Annotations()
+        val annotations: Annotations = mutableListOf()
         for (modifier in ctx.typeProjectionModifier()) {
             val annotation = modifier.annotation()
             if (annotation != null) {
@@ -492,8 +519,8 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
         return annotations
     }
     
-    private fun typeProjectionModifiersFromTypeProjectionModifierList(ctx: AprlParser.TypeProjectionModifierListContext): ArrayList<TypeProjectionModifier> {
-        val typeProjectionModifiers = ArrayList<TypeProjectionModifier>()
+    private fun typeProjectionModifiersFromTypeProjectionModifierList(ctx: AprlParser.TypeProjectionModifierListContext): MutableList<TypeProjectionModifier> {
+        val typeProjectionModifiers = mutableListOf<TypeProjectionModifier>()
         for (modifier in ctx.typeProjectionModifier()) {
             val typeProjectionModifier = modifier.varianceModifier()
             if (typeProjectionModifier != null) {
@@ -516,7 +543,7 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     }
     
     private fun parseAnnotations(ctx: AprlParser.AnnotationsContext): Annotations {
-        val annotations = Annotations()
+        val annotations: Annotations = mutableListOf()
         for (annotation in ctx.annotation()) {
             annotations.addAll(parseAnnotation(annotation))
         }
@@ -527,7 +554,7 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
         return if (ctx.LSQUARE() != null) {
             parseMultiAnnotation(ctx.unescapedAnnotation())
         } else {
-            arrayListOf(parseSingleAnnotation(ctx.unescapedAnnotation(0)))
+            mutableListOf(parseSingleAnnotation(ctx.unescapedAnnotation(0)))
         }
     }
     
@@ -872,8 +899,6 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     override fun enterElvisOperator(ctx: AprlParser.ElvisOperatorContext) {}
     
     override fun enterToOperator(ctx: AprlParser.ToOperatorContext) {}
-    
-    override fun enterByOperator(ctx: AprlParser.ByOperatorContext) {}
     
     override fun enterXorOperator(ctx: AprlParser.XorOperatorContext) {}
     

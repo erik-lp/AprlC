@@ -12,8 +12,9 @@ import java.nio.file.Paths
 fun main(args: Array<String>) {
     try {
         aprlc(args)
-    } catch (ex: aprl.compiler.Error) {
-        println("\u001B[31m${ex.message}\u001B[0m\n")
+    } catch (ex: Error) {
+        println("\u001B[31m${ex.message}\u001B[0m")
+        println("\u001B[31m" + ex.stackTraceToString().substringAfter("\n").substringBefore("\n") + "\u001B[0m")
     }
 }
 

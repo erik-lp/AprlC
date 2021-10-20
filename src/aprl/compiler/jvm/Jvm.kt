@@ -16,12 +16,12 @@ enum class Modifier {
     OPEN,
     COVER,
     PARAMS,
-    DIRECT,
+    INLINE,
     SYNC,
     EXTERNAL;
     
     fun `class`() = this in PUBLIC..OPEN
-    fun function() = this in PUBLIC..COVER || this in DIRECT..EXTERNAL
+    fun function() = this in PUBLIC..COVER || this in INLINE..EXTERNAL
     fun property() = this in PUBLIC..COVER
     fun parameter() = this == PARAMS
 }
@@ -29,29 +29,29 @@ enum class Modifier {
 class Clazz(val name: String) : TopLevelObject {
     
     var annotations: Annotations? = null
-    var modifiers: ArrayList<Modifier>? = null
-    var typeParameters: ArrayList<TypeParameter>? = null
+    var modifiers: MutableList<Modifier>? = null
+    var typeParameters: MutableList<TypeParameter>? = null
     
-    var superClasses: ArrayList<Type>? = null
+    var superClasses: MutableList<Type>? = null
     
-    var classMembers: ArrayList<ClassMember>? = null
+    var classMembers: MutableList<ClassMember>? = null
     
 }
 
 class Struct(val name: String) : TopLevelObject {
     
     val annotations: Annotations? = null
-    val modifiers: ArrayList<Modifier>? = null
+    val modifiers: MutableList<Modifier>? = null
     
-    val superClasses: ArrayList<Type>? = null
+    val superClasses: MutableList<Type>? = null
     
-    val structMembers: ArrayList<StructMember>? = null
+    val structMembers: MutableList<StructMember>? = null
     
 }
 
 class Constructor(val clazz: Clazz) : TopLevelObject {
     val annotations: Annotations? = null
-    val modifiers: ArrayList<Modifier>? = null
+    val modifiers: MutableList<Modifier>? = null
     val thisParameters: ValueArguments? = null
     val superParameters: ValueArguments? = null
     val statements: Statements? = null
@@ -74,27 +74,27 @@ class Expression {
 
 class Disjunction {
     var conjunction: Conjunction? = null
-    var additionalConjunctions: ArrayList<Conjunction>? = null
+    var additionalConjunctions: MutableList<Conjunction>? = null
 }
 
 class Conjunction {
     var equalityComparison: EqualityComparison? = null
-    var additionalEqualityComparisons: ArrayList<EqualityComparison>? = null
+    var additionalEqualityComparisons: MutableList<EqualityComparison>? = null
 }
 
 class EqualityComparison {
     var identityComparison: IdentityComparison? = null
-    var additionalIdentityComparisons: ArrayList<IdentityComparison>? = null
+    var additionalIdentityComparisons: MutableList<IdentityComparison>? = null
 }
 
 class IdentityComparison {
     var comparison: Comparison? = null
-    var additionalComparisons: ArrayList<Comparison>? = null
+    var additionalComparisons: MutableList<Comparison>? = null
 }
 
 class Comparison {
     var callExpression: CallExpression? = null
-    var additionalCallExpressions: ArrayList<CallExpression>? = null
+    var additionalCallExpressions: MutableList<CallExpression>? = null
 }
 
 class CallExpression {
@@ -103,7 +103,7 @@ class CallExpression {
 }
 
 class CallSuffix {
-    var typeArguments: ArrayList<TypeArgument>? = null
+    var typeArguments: MutableList<TypeArgument>? = null
     var lambdaCallSuffix: LambdaCallSuffix? = null
     var valueArguments: ValueArguments? = null
 }
@@ -120,7 +120,7 @@ class AnnotatedLambda {
 }
 
 class LambdaLiteral : FunctionLiteral {
-    var parameters: ArrayList<LambdaParameter>? = null
+    var parameters: MutableList<LambdaParameter>? = null
     var statements: Statements? = null
 }
 
@@ -138,7 +138,7 @@ class VariableDeclaration {
 
 class MultiVariableDeclaration {
     var variableDeclaration: VariableDeclaration? = null
-    var additionalVariableDeclarations: ArrayList<VariableDeclaration>? = null
+    var additionalVariableDeclarations: MutableList<VariableDeclaration>? = null
 }
 
 class NamedInfixExpression {
@@ -149,53 +149,52 @@ class NamedInfixExpression {
     }
     
     var elvisExpression: ElvisExpression? = null
-    private var expressions: ArrayList<Pair<Boolean, ElvisOrType>>? = null // FIXME
+    private var expressions: MutableList<Pair<Boolean, ElvisOrType>>? = null // FIXME
     
 }
 
 class ElvisExpression {
     var infixFunctionCall: InfixFunctionCall? = null
-    var additionalInfixFunctionCalls: ArrayList<InfixFunctionCall>? = null
+    var additionalInfixFunctionCalls: MutableList<InfixFunctionCall>? = null
 }
 
 class InfixFunctionCall {
     var rangeExpression: RangeExpression? = null
-    var additionalRangeExpressions: ArrayList<RangeExpression>? = null
+    var additionalRangeExpressions: MutableList<RangeExpression>? = null
 }
 
 class RangeExpression {
     var xorExpression: XorExpression? = null
     var to: XorExpression? = null
-    var by: XorExpression? = null
 }
 
 class XorExpression {
     var additiveExpression: AdditiveExpression? = null
-    var additionalAdditiveExpressions: ArrayList<AdditiveExpression>? = null
+    var additionalAdditiveExpressions: MutableList<AdditiveExpression>? = null
 }
 
 class AdditiveExpression {
     var multiplicativeExpression: MultiplicativeExpression? = null
-    var additionalMultiplicativeExpressions: ArrayList<MultiplicativeExpression>? = null
+    var additionalMultiplicativeExpressions: MutableList<MultiplicativeExpression>? = null
 }
 
 class MultiplicativeExpression {
     var exponentialExpression: ExponentialExpression? = null
-    var additionalExponentialExpressions: ArrayList<ExponentialExpression>? = null
+    var additionalExponentialExpressions: MutableList<ExponentialExpression>? = null
 }
 
 class ExponentialExpression {
     var asExpression: AsExpression? = null
-    var additionalAsExpressions: ArrayList<AsExpression>? = null
+    var additionalAsExpressions: MutableList<AsExpression>? = null
 }
 
 class AsExpression {
     var prefixUnaryExpression: PrefixUnaryExpression? = null
-    var typeCasts: ArrayList<Type>? = null
+    var typeCasts: MutableList<Type>? = null
 }
 
 class PrefixUnaryExpression {
-    var unaryPrefixes: ArrayList<UnaryPrefix>? = null
+    var unaryPrefixes: MutableList<UnaryPrefix>? = null
     var postfixUnaryExpression: PostfixUnaryExpression? = null
 }
 
@@ -205,7 +204,7 @@ enum class UnaryPrefix {
 
 class PostfixUnaryExpression {
     var atomicExpression: AtomicExpression? = null
-    var unaryPostfixes: ArrayList<UnaryPostfix>? = null
+    var unaryPostfixes: MutableList<UnaryPostfix>? = null
 }
 
 enum class UnaryPostfix {
@@ -220,7 +219,7 @@ class AtomicExpression {
     var callableReference: CallableReference? = null
     var functionLiteral: FunctionLiteral? = null
     var anonymousObjectLiteral: AnonymousObject? = null
-    var collectionLiteral: ArrayList<Expression>? = null
+    var collectionLiteral: MutableList<Expression>? = null
     var thisExpression: String? = null
     var superExpression: Pair<Type?, String?>? = null
     var conditionalExpression: ConditionalExpression? = null
@@ -351,21 +350,21 @@ class Document(val name: String) : TopLevelObject {
 }
 
 class Function(val name: String, val returnType: Type) : TopLevelObject {
-    val annotations = Annotations()
-    val modifiers = ArrayList<Modifier>()
-    val parameters = ArrayList<MethodParameter>()
-    val statements = Statements()
+    var annotations: Annotations? = null
+    var modifiers: MutableList<Modifier>? = null
+    var parameters: MutableList<MethodParameter>? = null
+    var statements: Statements? = null
 }
 
 data class MethodParameter(val name: String, val type: Type)
 
 class Property(val name: String, val type: Type, val initialValue: Expression? = null, val static: Boolean = false) : TopLevelObject {
-    val annotations = Annotations()
-    val modifiers = ArrayList<Modifier>()
+    var annotations: Annotations? = null
+    var modifiers: MutableList<Modifier>? = null
 }
 
 class LoadScript : ClassMember {
-    val statements = Statements()
+    var statements: Statements? = null
 }
 
 @Suppress("ArrayInDataClass")

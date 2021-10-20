@@ -2,7 +2,7 @@ package aprl.compiler;
 
 import java.util.*;
 
-public class Test<A> {
+public class Test {
     
     public static final String NAME = "Hi";
     public static final int WIDTH = 7;

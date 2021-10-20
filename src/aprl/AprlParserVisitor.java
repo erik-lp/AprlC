@@ -947,12 +947,6 @@ public interface AprlParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitToOperator(AprlParser.ToOperatorContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link AprlParser#byOperator}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitByOperator(AprlParser.ByOperatorContext ctx);
-	/**
 	 * Visit a parse tree produced by {@link AprlParser#xorOperator}.
 	 * @param ctx the parse tree
 	 * @return the visitor result

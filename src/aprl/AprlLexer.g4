@@ -51,7 +51,7 @@ COVER: 'cover';
 OPEN: 'open';
 FINAL: 'final';
 
-DIRECT: 'direct';
+INLINE: 'inline';
 EXTERNAL: 'external';
 SYNC: 'sync';
 
@@ -88,9 +88,6 @@ NOT_IS: '!is';
 IN: 'in';
 NOT_IN: '!in';
 
-TO: 'to';
-BY: 'by';
-
 TRY: 'try';
 TRY_QUEST: 'try?';
 CATCH: 'catch';
@@ -126,7 +123,9 @@ XOR: '~' | '~~'; XOR_ASSIGN: '~=' | '~~=';
 COMMA: ',';
 PERIOD: '.';
 QUEST_PERIOD: '?.';
-DOUBLE_PERIOD: '..';
+DOWNTO: '>..';
+TO: '..';
+UNTIL: '..<';
 TRIPLE_PERIOD: '...';
 COLON: ':';
 DOUBLE_COLON: '::';

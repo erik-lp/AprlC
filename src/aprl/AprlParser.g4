@@ -154,7 +154,7 @@ varianceModifier
     : SUB_ | SUPER;
 
 type
-    : annotations? (functionType | parenthesizedType | arrayType | nullableType | identifier);
+    : annotations? (functionType | parenthesizedType | arrayType | nullableType | identifier typeArguments?);
 
 functionType
     : functionTypeParameters NL* RARROW_THICK NL* type;
@@ -172,7 +172,7 @@ arrayType
     : LSQUARE NL* type NL* RSQUARE;
 
 nullableType
-    : (identifier | parenthesizedType | arrayType) QUEST;
+    : (identifier typeArguments? | parenthesizedType | arrayType) QUEST;
 
 // Struct
 
@@ -205,7 +205,11 @@ enumEntry
 // Extension
 
 extensionDeclaration
-    : modifierList? EXTENSION NL* receiverType (NL* extensionBody)?;
+    : modifierList?
+    EXTENSION
+    (NL* typeParameters)?
+    NL* receiverType
+    (NL* extensionBody)?;
 
 extensionBody
     : LCURLY NL* extensionMember* NL* RCURLY;
@@ -329,7 +333,7 @@ infixFunctionCall
     : rangeExpression (simpleIdentifier rangeExpression)*;
 
 rangeExpression
-    : xorExpression (toOperator xorExpression (byOperator xorExpression)?)?;
+    : xorExpression (toOperator xorExpression)?;
 
 xorExpression
     : additiveExpression (xorOperator additiveExpression)*;
@@ -555,10 +559,7 @@ elvisOperator
     : NL * ELVIS NL*;
 
 toOperator
-    : NL* (DOUBLE_PERIOD | TO) NL*;
-
-byOperator
-    : NL* (BY | DOUBLE_COLON) NL*;
+    : NL* (TO | DOWNTO | UNTIL) NL*;
 
 xorOperator
     : NL* XOR NL*;
@@ -643,7 +644,7 @@ parameterModifier
     : PARAMS;
 
 functionModifier
-    : DIRECT
+    : INLINE
     | SYNC
     | EXTERNAL;
 

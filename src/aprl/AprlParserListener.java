@@ -1568,16 +1568,6 @@ public interface AprlParserListener extends ParseTreeListener {
 	 */
 	void exitToOperator(AprlParser.ToOperatorContext ctx);
 	/**
-	 * Enter a parse tree produced by {@link AprlParser#byOperator}.
-	 * @param ctx the parse tree
-	 */
-	void enterByOperator(AprlParser.ByOperatorContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link AprlParser#byOperator}.
-	 * @param ctx the parse tree
-	 */
-	void exitByOperator(AprlParser.ByOperatorContext ctx);
-	/**
 	 * Enter a parse tree produced by {@link AprlParser#xorOperator}.
 	 * @param ctx the parse tree
 	 */

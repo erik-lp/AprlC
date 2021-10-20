@@ -3,7 +3,6 @@ package aprl.compiler
 import aprl.AprlParser
 import aprl.compiler.jvm.Annotations
 import aprl.compiler.jvm.Modifier
-import aprl.compiler.jvm.Type
 import org.antlr.v4.runtime.ParserRuleContext
 import java.util.*
 
@@ -30,7 +29,7 @@ fun modifiersFromModifierList(ctx: AprlParser.ModifierListContext): ArrayList<Mo
             if (parameter.PARAMS() != null) Modifier.PARAMS
             else throw InternalError("Expected ParameterModifierContext ($parameter) to be PARAMS")
         } else if (function != null) {
-            if (function.DIRECT() != null) Modifier.DIRECT
+            if (function.INLINE() != null) Modifier.INLINE
             else if (function.SYNC() != null) Modifier.SYNC
             else if (function.EXTERNAL() != null) Modifier.EXTERNAL
             else throw InternalError("Expected ")
@@ -60,7 +59,7 @@ private fun loadClass(string: String): Class<*>? {
 }
 
 fun loadCompleteClass(string: String): Class<*>? {
-    return loadCompleteClass(ArrayList(string.split(".")), arrayListOf())
+    return loadCompleteClass(string.split(".").toMutableList(), mutableListOf())
 }
 
 private fun loadCompleteClass(identifiers: MutableList<String>, subIdentifiers: MutableList<String>): Class<*>? {
@@ -70,7 +69,7 @@ private fun loadCompleteClass(identifiers: MutableList<String>, subIdentifiers: 
     val subIdentifierString = if (subIdentifiers.isEmpty()) "" else "$" + subIdentifiers.reversed().joinToString("$")
     val string = identifiers.joinToString(".") + subIdentifierString
     val last = identifiers.removeAt(identifiers.lastIndex)
-    return loadClass(string) ?: loadCompleteClass(identifiers, ArrayList(subIdentifiers + last))
+    return loadClass(string) ?: loadCompleteClass(identifiers, (subIdentifiers + last).toMutableList())
 }
 
 fun loadMethod(clazz: Class<*>, methodName: String) = clazz.methods.firstOrNull { it.name == methodName }
@@ -83,7 +82,7 @@ fun loadField(clazz: Class<*>, fieldName: String) = clazz.fields.firstOrNull { i
 fun loadFields(clazz: Class<*>, fieldName: String) = clazz.fields.filter { it.name == fieldName }
 
 fun faultyIdentifier(identifiers: List<AprlParser.SimpleIdentifierContext>): AprlParser.SimpleIdentifierContext {
-    val currentIdentifiers = ArrayList<String>()
+    val currentIdentifiers = mutableListOf<String>()
     var lastValidIndex = 0
     for ((i, id) in identifiers.map { it.text }.withIndex()) {
         currentIdentifiers.add(id)
@@ -96,9 +95,9 @@ fun faultyIdentifier(identifiers: List<AprlParser.SimpleIdentifierContext>): Apr
 val ParserRuleContext.position: Pair<Int, Int>
     get() = Pair(start.line, start.charPositionInLine + 1)
 
-fun Pair<Int, Int>.plus(a: Int, b: Int): Pair<Int, Int> {
-    return Pair(first + a, second + b)
-}
+fun Pair<Int, Int>.plus(a: Int, b: Int) = Pair(first + a, second + b)
+
+fun Pair<Int, Int>.minus(a: Int, b: Int) = Pair(first - a, second - b)
 
 inline fun <reified T> List<T>.asArray(): Array<T> = Array(this.size) {
     this[it]
