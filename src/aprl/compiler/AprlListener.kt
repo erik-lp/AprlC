@@ -7,8 +7,11 @@ import aprl.compiler.jvm.Annotation
 import aprl.compiler.jvm.Enum
 import java.io.File
 import java.lang.reflect.Modifier
+import java.lang.reflect.ParameterizedType
 import java.util.*
 import kotlin.jvm.Throws
+
+import java.lang.reflect.Type as JType
 
 class AprlListener(private val fileName: String, targetDir: File?) : AprlParserBaseListener() {
     
@@ -327,10 +330,13 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
                             throw Error(simpleName, varianceModifier.position, "Projections are not allowed here")
                         }
                     } else {
-                        val bounds = superTypeParameter.bounds
                         val type: Type = parseType(typeProjection.type())
                         val classOfType = type.toJava()
-                        println("Type argument: $classOfType")
+                        for (bound in superTypeParameter.bounds) {
+                            if (!isInBound(classOfType, bound)) {
+                                throw Error(simpleName, typeProjection.position, "Type argument is not within bounds (expected ${bound.typeName})")
+                            }
+                        }
                         // TODO: check if type conforms to bounds
                     }
                 }
@@ -340,6 +346,13 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
                 throw Error(simpleName, typeArguments.position, "No type arguments expected for '${clazz.name}'")
             }
         }
+    }
+    
+    private fun isInBound(clazz: Class<*>, bound: JType): Boolean {
+        if (bound is ParameterizedType) {
+            return isInBound(clazz, bound.rawType) && clazz.typeParameters.allIndexed { i, it -> isInBound(it.genericDeclaration, bound.actualTypeArguments[i]) }
+        }
+        TODO()
     }
     
     private fun checkClassExtendability(clazz: Class<*>, position: Pair<Int, Int>) {

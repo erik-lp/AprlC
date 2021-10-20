@@ -116,3 +116,39 @@ fun <A, B> List<A>.pair(other: Array<B>): List<Pair<A, B>> {
     }
     return mapIndexed { i, it -> Pair(it, other[i]) }
 }
+
+fun <T> List<T>.anyIndexed(predicate: (Int, T) -> Boolean): Boolean {
+    for (i in 0 until this.size) {
+        if (predicate(i, this[i])) {
+            return true
+        }
+    }
+    return false
+}
+
+fun <T> Array<T>.anyIndexed(predicate: (Int, T) -> Boolean): Boolean {
+    for (i in 0 until this.size) {
+        if (predicate(i, this[i])) {
+            return true
+        }
+    }
+    return false
+}
+
+fun <T> List<T>.allIndexed(predicate: (Int, T) -> Boolean): Boolean {
+    for (i in 0 until this.size) {
+        if (!predicate(i, this[i])) {
+            return false
+        }
+    }
+    return true
+}
+
+fun <T> Array<T>.allIndexed(predicate: (Int, T) -> Boolean): Boolean {
+    for (i in 0 until this.size) {
+        if (!predicate(i, this[i])) {
+            return false
+        }
+    }
+    return true
+}
