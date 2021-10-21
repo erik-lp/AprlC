@@ -6,10 +6,13 @@ import aprl.compiler.jvm.*
 import aprl.compiler.jvm.Annotation
 import aprl.compiler.jvm.Enum
 import java.io.File
+import java.lang.IllegalStateException
 import java.lang.reflect.Modifier
 import java.lang.reflect.ParameterizedType
+import java.lang.reflect.WildcardType
 import java.util.*
 import kotlin.jvm.Throws
+import kotlin.reflect.jvm.jvmName
 
 import java.lang.reflect.Type as JType
 
@@ -331,13 +334,11 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
                         }
                     } else {
                         val type: Type = parseType(typeProjection.type())
-                        val classOfType = type.toJava()
                         for (bound in superTypeParameter.bounds) {
-                            if (!isInBound(classOfType, bound)) {
+                            if (!isInBound(type.toJava(), type.typeArguments, bound)) {
                                 throw Error(simpleName, typeProjection.position, "Type argument is not within bounds (expected ${bound.typeName})")
                             }
                         }
-                        // TODO: check if type conforms to bounds
                     }
                 }
             }
@@ -348,11 +349,37 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
         }
     }
     
-    private fun isInBound(clazz: Class<*>, bound: JType): Boolean {
-        if (bound is ParameterizedType) {
-            return isInBound(clazz, bound.rawType) && clazz.typeParameters.allIndexed { i, it -> isInBound(it.genericDeclaration, bound.actualTypeArguments[i]) }
+    private fun isInBound(clazz: Class<*>, typeArguments: TypeArgument?, bound: JType): Boolean {
+        return when (bound) {
+            is Class<*> -> {
+                bound.isAssignableFrom(clazz)
+            }
+            is ParameterizedType -> {
+                val condition1 = (bound.rawType as Class<*>).isAssignableFrom(clazz)
+                val condition2 = with(typeArguments?.typeProjections ?: emptyList()) {
+                    val sameSize = size == bound.actualTypeArguments.size
+                    val matching = allIndexed { i, typeProjection ->
+                        typeProjection.wildcard || isInBound(typeProjection.type!!.toJava(), typeProjection.type.typeArguments, bound.actualTypeArguments[i])
+                    }
+                    sameSize && matching
+                }
+                (condition1 && condition2)
+            }
+            is WildcardType -> {
+                val belowUpper = bound.upperBounds.all { isInBound(clazz, typeArguments, it) }
+                val aboveLower = bound.lowerBounds.all { clazz.isAssignableFrom(it.toPlainClass()) }
+                belowUpper && aboveLower
+            }
+            else -> throw InternalError("Didn't expect $bound to be ${bound.javaClass.name}")
         }
-        TODO()
+    }
+    
+    private fun JType.toPlainClass(): Class<*> {
+        return when (this) {
+            is Class<*> -> this
+            is ParameterizedType -> this.rawType as Class<*>
+            else -> throw InternalError("Didn't expect $this to be ${this.javaClass.name}")
+        }
     }
     
     private fun checkClassExtendability(clazz: Class<*>, position: Pair<Int, Int>) {
