@@ -3,17 +3,11 @@ package aprl.compiler
 import aprl.AprlParser
 import aprl.AprlParserBaseListener
 import aprl.compiler.jvm.*
-import aprl.compiler.jvm.Annotation
-import aprl.compiler.jvm.Enum
 import java.io.File
-import java.lang.IllegalStateException
 import java.lang.reflect.Modifier
 import java.lang.reflect.ParameterizedType
 import java.lang.reflect.WildcardType
 import java.util.*
-import kotlin.jvm.Throws
-import kotlin.reflect.jvm.jvmName
-
 import java.lang.reflect.Type as JType
 
 class AprlListener(private val fileName: String, targetDir: File?) : AprlParserBaseListener() {
@@ -24,18 +18,18 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     
     private val simpleName = fileName.substringAfterLast(File.separator)
     
-    // if there are multiple top level objects or a standalone function/property/extension, an enclosing class is needed
+    // if there are standalone function(s)/property(ies)/extension(s), an enclosing class is needed
     private var enclosingClassRequired = false
         private set(new) {
             field = new
             enclosingClass = if (new) Clazz(fileName) else null
         }
     
-    // $fileName if there are top level functions/properties/extensions, null otherwise
+    // fileName if an enclosing class is required (see enclosingClassRequired), null otherwise
     private var enclosingClass: Clazz? = null
     
     // if there is a targetDir, use it; source folder otherwise
-    private val outputFileName = targetDir.safe { path + File.separator + fileName.substringAfterLast(File.separator) }
+    private val outputFileName = targetDir?.let { it.path + File.separator + fileName.substringAfterLast(File.separator) }
         ?: fileName.replaceAfterLast(".", SUFFIX)
     
     private val namespace = Namespace()
@@ -57,7 +51,7 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     
     private fun namespaceMatchesLocation(ctx: AprlParser.NamespaceHeaderContext, filePath: String): Boolean {
         val identifier = ctx.identifier()
-        val simpleIdentifiers = identifier.simpleIdentifier().reversed().toMutableList()
+        val simpleIdentifiers = identifier.simpleIdentifier().reversedMutable()
         val subFolders = LinkedList(filePath.split(File.separator).reversed()).also { it.pop() }
         for (id in simpleIdentifiers) {
             if (id.Identifier().symbol.text != subFolders.pop()) {
@@ -140,10 +134,7 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
         from.fields.forEach { field -> imports.add(Import().also { it.field = field }) }
     }
     
-    private fun parseMultiImport(
-        identifier: AprlParser.IdentifierContext,
-        elements: List<Pair<AprlParser.SimpleIdentifierContext, AprlParser.ImportAliasContext?>>
-    ) {
+    private fun parseMultiImport(identifier: AprlParser.IdentifierContext, elements: List<Pair<AprlParser.SimpleIdentifierContext, AprlParser.ImportAliasContext?>>) {
         val importIdentifier = identifier.simpleIdentifier().joinToString(".") { it.text }
         val pkg = loadPackage(importIdentifier)
         val clazz = loadCompleteClass(importIdentifier)
@@ -156,10 +147,7 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
         }
     }
     
-    private fun importMultipleFromPackage(
-        from: Package,
-        elements: List<Pair<AprlParser.SimpleIdentifierContext, AprlParser.ImportAliasContext?>>
-    ) {
+    private fun importMultipleFromPackage(from: Package, elements: List<Pair<AprlParser.SimpleIdentifierContext, AprlParser.ImportAliasContext?>>) {
         val pkg = from.name
         for ((subIdentifier, alias) in elements) {
             val aliasString = alias?.simpleIdentifier()?.text
@@ -178,10 +166,7 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
         }
     }
     
-    private fun importMultipleFromClass(
-        from: Class<*>,
-        elements: List<Pair<AprlParser.SimpleIdentifierContext, AprlParser.ImportAliasContext?>>
-    ) {
+    private fun importMultipleFromClass(from: Class<*>, elements: List<Pair<AprlParser.SimpleIdentifierContext, AprlParser.ImportAliasContext?>>) {
         for ((subIdentifier, alias) in elements) {
             addValidImports(from, subIdentifier, alias)
         }
@@ -213,17 +198,11 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
         }
     }
     
-    private fun parseSingleImport(
-        identifier: AprlParser.IdentifierContext,
-        importAlias: AprlParser.ImportAliasContext?
-    ) {
+    private fun parseSingleImport(identifier: AprlParser.IdentifierContext, importAlias: AprlParser.ImportAliasContext?) {
         parseSingleImport(identifier.simpleIdentifier(), importAlias)
     }
     
-    private fun parseSingleImport(
-        identifiers: List<AprlParser.SimpleIdentifierContext>,
-        importAlias: AprlParser.ImportAliasContext?
-    ) {
+    private fun parseSingleImport(identifiers: List<AprlParser.SimpleIdentifierContext>, importAlias: AprlParser.ImportAliasContext?) {
         val importIdentifier = identifiers.joinToString(".") { it.text }
         val alias = importAlias?.simpleIdentifier()?.text
         val pkg = loadPackage(importIdentifier)
@@ -240,7 +219,8 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
             imports.add(Import().also { it.clazz = clazz; it.alias = alias })
         } else {
             val last = identifiers.last()
-            val possibleClass = loadCompleteClass(identifiers.dropLast(1).joinToString(".") { it.text }) ?: throw Error(simpleName, last.position, "Unresolved reference: '${last.text}'")
+            val possibleClass =
+                loadCompleteClass(identifiers.dropLast(1).joinToString(".") { it.text }) ?: throw Error(simpleName, last.position, "Unresolved reference: '${last.text}'")
             addValidImports(possibleClass, last, importAlias)
         }
     }
@@ -273,14 +253,16 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
             parseTopLevelFunction(function)
         } else if (property != null) {
             parseTopLevelProperty(property)
+        } else {
+            throw InternalError("Expected TopLevelObjectContext ($ctx) to be class-, interface-, annotation-, document-, struct-, extension-, function- or propertyDeclaration")
         }
     }
     
     private fun parseTopLevelClass(ctx: AprlParser.ClassDeclarationContext) {
         val clazz = Clazz(ctx.simpleIdentifier().text)
-        clazz.modifiers = ctx.modifierList().safe { modifiersFromModifierList(this@safe) } ?: mutableListOf()
-        clazz.annotations = ctx.modifierList().safe { annotationsFromModifierList(this@safe) } ?: mutableListOf()
-        clazz.typeParameters = ctx.typeParameters().safe { parseTypeParameters(this@safe) } ?: mutableListOf()
+        clazz.modifiers = ctx.modifierList()?.let { modifiersFromModifierList(it) } ?: mutableListOf()
+        clazz.annotations = ctx.modifierList()?.let { annotationsFromModifierList(it) } ?: mutableListOf()
+        clazz.typeParameters = ctx.typeParameters()?.let { parseTypeParameters(it) } ?: mutableListOf()
         val delegations = ctx.delegationSpecifiers()
         if (delegations != null) {
             val superClasses = mutableListOf<Triple<Annotations, Class<*>, ValueArguments>>()
@@ -288,7 +270,7 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
                 val delegationSpecifier = delegation.delegationSpecifier()
                 val identifier = delegationSpecifier.identifier()
                 val superClass = loadImportedClass(identifier)
-                val valueArguments = delegationSpecifier.valueArguments().safe { parseValueArguments(this@safe) }
+                val valueArguments = delegationSpecifier.valueArguments()?.let { parseValueArguments(it) }
                 if (superClasses.any { it.second == superClass }) {
                     throw Error(simpleName, identifier.position, "Supertype '${superClass.simpleName}' appears twice")
                 }
@@ -299,12 +281,12 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
                     }
                     if (valueArguments == null) {
                         val last = identifier.simpleIdentifier().last()
-                        throw Error(simpleName, last.position.plus(0, last.text.length), "This type has a constructor and thus must be initialized here")
+                        throw Error(simpleName, last.position + last.text.length, "This type has a constructor and thus must be initialized here")
                     }
                     // TODO: check correctness of value arguments
                 }
                 checkTypeArguments(superClass, delegationSpecifier.typeArguments(), false, identifier.simpleIdentifier().last())
-                superClasses.add(Triple(delegation.annotations().safe { parseAnnotations(this@safe) } ?: mutableListOf(), superClass, valueArguments ?: mutableListOf()))
+                superClasses.add(Triple(delegation.annotations()?.let { parseAnnotations(it) } ?: mutableListOf(), superClass, valueArguments ?: mutableListOf()))
             }
         }
         // TODO: class members
@@ -317,7 +299,7 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
         val req = if (b == 1) "One type argument" else "$b type arguments"
         if (superTypeParameters.isNotEmpty()) {
             if (typeArguments?.typeProjection()?.isNotEmpty() != true) {
-                throw Error(simpleName, lastIdentifier.position.plus(0, lastIdentifier.text.length), "$req expected for ${clazz.name}")
+                throw Error(simpleName, lastIdentifier.position + lastIdentifier.text.length, "$req expected for ${clazz.name}")
             }
             if (typeArguments.typeProjection().size != b) {
                 throw Error(simpleName, typeArguments.position, "$req expected for '${clazz.name}'")
@@ -455,16 +437,12 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     }
     
     private fun parseTypeParameters(parameters: List<AprlParser.TypeParameterContext>): MutableList<TypeParameter> {
-        val actualParameters = mutableListOf<TypeParameter>()
-        for (param in parameters) {
-            actualParameters.add(parseTypeParameter(param))
-        }
-        return actualParameters
+        return parameters.mapMutable { parseTypeParameter(it) }
     }
     
     private fun parseTypeParameter(parameter: AprlParser.TypeParameterContext): TypeParameter {
         val name = parameter.simpleIdentifier().text
-        val constraints = parameter.type().safe { parseTypeConstraints(this@safe) } ?: emptyList()
+        val constraints = parameter.type()?.let { parseTypeConstraints(it) } ?: emptyList()
         return TypeParameter(name, constraints.asArray())
     }
     
@@ -477,13 +455,13 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     }
     
     private fun parseType(type: AprlParser.TypeContext): Type {
-        val annotations = type.annotations().safe { parseAnnotations(this@safe) } ?: mutableListOf()
+        val annotations = type.annotations()?.let { parseAnnotations(it) } ?: mutableListOf()
         val function = type.functionType()
         val paren = type.parenthesizedType()
         val array = type.arrayType()
         val nullable = type.nullableType()
         val identifier = type.identifier()
-        val typeArguments = type.typeArguments()?.safe { parseTypeArguments(this@safe) }
+        val typeArguments = type.typeArguments()?.let { parseTypeArguments(it) }
         return if (function != null) {
             parseFunctionType(annotations, function)
         } else if (paren != null) {
@@ -492,7 +470,7 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
             ArrayType(this, annotations, parseType(array.type()))
         } else if (nullable != null) {
             val identifier1 = nullable.identifier()
-            val typeArguments1 = nullable.typeArguments()?.safe { parseTypeArguments(this@safe) }
+            val typeArguments1 = nullable.typeArguments()?.let { parseTypeArguments(it) }
             val paren1 = nullable.parenthesizedType()
             val array1 = nullable.arrayType()
             val baseType = if (identifier1 != null) {
@@ -504,7 +482,7 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
             } else if (array1 != null) {
                 parseType(array1.type())
             } else {
-                throw InternalError("Expected NullableTypeContext ($nullable) to have userType, parenthesizedType or arrayType")
+                throw InternalError("Expected NullableTypeContext ($nullable) to have user-, parenthesized- or arrayType")
             }
             NullableType(this, annotations, baseType)
         } else if (identifier != null) {
@@ -512,7 +490,7 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
             checkTypeArguments(clazz, type.typeArguments(), true, identifier.simpleIdentifier().last())
             Identifier(this, annotations, identifier.simpleIdentifier().toMutableList(), typeArguments)
         } else {
-            throw InternalError("Expected TypeContext ($type) to have functionType, parenthesizedType, arrayType, nullableType or userType")
+            throw InternalError("Expected TypeContext ($type) to have function-, parenthesized-, array-, nullable- or userType")
         }
     }
     
@@ -522,7 +500,7 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
             parameters.add(parseType(functionTP))
         }
         val returnType = parseType(ctx.type())
-        return FunctionType(this, annotations, parameters, returnType)
+        return FunctionType(this, annotations, ctx.functionTypeParameters().type()?.mapMutable { parseType(it) } ?: mutableListOf(), returnType)
     }
     
     private fun parseTypeArguments(ctx: AprlParser.TypeArgumentsContext): TypeArgument {
@@ -545,7 +523,7 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
             typeProjectionModifiers =
                 typeProjectionModifiersFromTypeProjectionModifierList(ctx.typeProjectionModifierList())
         }
-        return TypeProjection(annotations, typeProjectionModifiers, ctx.type().safe { parseType(this@safe) })
+        return TypeProjection(annotations, typeProjectionModifiers, ctx.type()?.let { parseType(it) })
     }
     
     private fun annotationsFromTypeProjectionModifierList(ctx: AprlParser.TypeProjectionModifierListContext): Annotations {

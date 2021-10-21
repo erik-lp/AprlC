@@ -95,9 +95,7 @@ fun faultyIdentifier(identifiers: List<AprlParser.SimpleIdentifierContext>): Apr
 val ParserRuleContext.position: Pair<Int, Int>
     get() = Pair(start.line, start.charPositionInLine + 1)
 
-fun Pair<Int, Int>.plus(a: Int, b: Int) = Pair(first + a, second + b)
-
-fun Pair<Int, Int>.minus(a: Int, b: Int) = Pair(first - a, second - b)
+operator fun Pair<Int, Int>.plus(b: Int) = Pair(first, second + b)
 
 inline fun <reified T> List<T>.asArray(): Array<T> = Array(this.size) {
     this[it]
@@ -152,3 +150,11 @@ fun <T> Array<T>.allIndexed(predicate: (Int, T) -> Boolean): Boolean {
     }
     return true
 }
+
+fun <T, R> List<T>.mapMutable(transform: (T) -> R): MutableList<R> = map(transform).toMutableList()
+
+fun <T> List<T>.reversedMutable(): MutableList<T> = reversed().toMutableList()
+
+fun <T, R> Array<T>.mapMutable(transform: (T) -> R): MutableList<R> = map(transform).toMutableList()
+
+fun <T> Array<T>.reversedMutable(): MutableList<T> = reversed().toMutableList()

@@ -22,7 +22,7 @@ private fun aprlc(args: Array<String>) {
     val cmdParser = AprlCmdParser(args)
     val target = cmdParser.targetDir
     for (sourceFile in cmdParser.sourceFiles) {
-        compile(sourceFile, target.safe { File(this) })
+        compile(sourceFile, target?.let { File(it) })
     }
 }
 
@@ -36,8 +36,4 @@ private fun compile(input: File, targetDir: File?) {
     val listener = AprlListener(input.path, targetDir)
     ParseTreeWalker().walk(listener, tree)
     listener.compile()
-}
-
-fun <A, B> A?.safe(b: A.() -> (B)): B? {
-    return if (this != null) b(this) else null
 }

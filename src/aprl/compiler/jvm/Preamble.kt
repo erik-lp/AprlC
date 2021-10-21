@@ -1,6 +1,5 @@
 package aprl.compiler.jvm
 
-import aprl.compiler.safe
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 
