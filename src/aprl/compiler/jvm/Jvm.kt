@@ -6,35 +6,39 @@ sealed interface ClassMember
 sealed interface StructMember // TODO: StructMember
 sealed interface TopLevelObject : ClassMember
 
-enum class Modifier {
-    PUBLIC,
-    LOCAL,
-    BOUNDED,
-    PRIVATE,
-    SAMPLE,
-    FINAL,
-    OPEN,
-    COVER,
-    PARAMS,
-    INLINE,
-    SYNC,
-    EXTERNAL;
+enum class Modifier(private val java: String?) {
+    
+    PUBLIC("public "),
+    LOCAL(""),
+    BOUNDED("protected "),
+    PRIVATE("private "),
+    SAMPLE("abstract "),
+    FINAL("final "),
+    OPEN(null),
+    COVER(null),
+    PARAMS(null),
+    INLINE(null),
+    SYNC("synchronized "),
+    EXTERNAL("native ");
     
     fun `class`() = this in PUBLIC..OPEN
     fun function() = this in PUBLIC..COVER || this in INLINE..EXTERNAL
     fun property() = this in PUBLIC..COVER
     fun parameter() = this == PARAMS
+    
+    fun toJava(): String = java ?: throw InternalError("$this does not have a java equivalent")
+    
 }
 
 class Clazz(val name: String) : TopLevelObject {
     
-    var annotations: Annotations? = null
-    var modifiers: MutableList<Modifier>? = null
-    var typeParameters: MutableList<TypeParameter>? = null
+    val annotations: Annotations = mutableListOf()
+    val modifiers: MutableList<Modifier> = mutableListOf()
+    val typeParameters: MutableList<TypeParameter> = mutableListOf()
     
-    var superClasses: MutableList<Type>? = null
+    val superClasses: MutableList<Type> = mutableListOf()
     
-    var classMembers: MutableList<ClassMember>? = null
+    val classMembers: MutableList<ClassMember> = mutableListOf()
     
 }
 
@@ -61,30 +65,61 @@ class Statement {
 
 }
 
-class ValueArgument(val value: Expression) {
-    var annotations: Annotations? = null
-    var identifier: String? = null
-    var unpack = false
-    var expression: Expression? = null
+class ValueArgument(val value: Expression) : Java {
+    
+    val annotations: Annotations = mutableListOf()
+    lateinit var expression: Expression
+    
+    override fun toJava(): String {
+        TODO("Not yet implemented")
+    }
+    
 }
 
-class Expression {
-    var disjunction: Disjunction? = null
+class Expression : Java {
+    lateinit var disjunction: Disjunction
+    
+    override fun toJava(): String {
+        return disjunction.toJava()
+    }
 }
 
-class Disjunction {
-    var conjunction: Conjunction? = null
-    var additionalConjunctions: MutableList<Conjunction>? = null
+class Disjunction : Java {
+    lateinit var conjunction: Conjunction
+    lateinit var additionalConjunctions: MutableList<Conjunction>
+    
+    override fun toJava(): String {
+        val sb = StringBuilder()
+        sb.append(conjunction.toJava())
+        if (additionalConjunctions.isNotEmpty()) {
+            sb.append(additionalConjunctions.joinToString(" || ", " || ") { it.toJava() })
+        }
+        return sb.toString()
+    }
 }
 
-class Conjunction {
-    var equalityComparison: EqualityComparison? = null
-    var additionalEqualityComparisons: MutableList<EqualityComparison>? = null
+class Conjunction : Java {
+    lateinit var equalityComparison: EqualityComparison
+    lateinit var additionalEqualityComparisons: MutableList<EqualityComparison>
+    
+    override fun toJava(): String {
+        val sb = StringBuilder()
+        sb.append(equalityComparison.toJava())
+        if (additionalEqualityComparisons.isNotEmpty()) {
+            sb.append(additionalEqualityComparisons.joinToString(" || ", " || ") { it.toJava() })
+        }
+        return sb.toString()
+    }
 }
 
-class EqualityComparison {
-    var identityComparison: IdentityComparison? = null
-    var additionalIdentityComparisons: MutableList<IdentityComparison>? = null
+class EqualityComparison : Java {
+    lateinit var identityComparison: IdentityComparison
+    lateinit var additionalIdentityComparisons: MutableList<IdentityComparison>
+    
+    override fun toJava(): String {
+        // TODO: EqualityComparison.toJava()
+        return "<EQUALITY_COMPARISON>"
+    }
 }
 
 class IdentityComparison {

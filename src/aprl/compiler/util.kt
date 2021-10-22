@@ -115,6 +115,20 @@ fun <A, B> List<A>.pair(other: Array<B>): List<Pair<A, B>> {
     return mapIndexed { i, it -> Pair(it, other[i]) }
 }
 
+fun <A, B> Array<A>.pair(other: List<B>): List<Pair<A, B>> {
+    if (size != other.size) {
+        throw UnsupportedOperationException("Cannot pair lists of unlike sizes")
+    }
+    return mapIndexed { i, it -> Pair(it, other[i]) }
+}
+
+fun <A, B> Array<A>.pair(other: Array<B>): List<Pair<A, B>> {
+    if (size != other.size) {
+        throw UnsupportedOperationException("Cannot pair lists of unlike sizes")
+    }
+    return mapIndexed { i, it -> Pair(it, other[i]) }
+}
+
 fun <T> List<T>.anyIndexed(predicate: (Int, T) -> Boolean): Boolean {
     for (i in 0 until this.size) {
         if (predicate(i, this[i])) {
@@ -153,8 +167,12 @@ fun <T> Array<T>.allIndexed(predicate: (Int, T) -> Boolean): Boolean {
 
 fun <T, R> List<T>.mapMutable(transform: (T) -> R): MutableList<R> = map(transform).toMutableList()
 
-fun <T> List<T>.reversedMutable(): MutableList<T> = reversed().toMutableList()
-
 fun <T, R> Array<T>.mapMutable(transform: (T) -> R): MutableList<R> = map(transform).toMutableList()
+
+fun <T, R> List<T>.flatMapMutable(transform: (T) -> Iterable<R>): MutableList<R> = flatMap(transform).toMutableList()
+
+fun <T, R> Array<T>.flatMapMutable(transform: (T) -> Iterable<R>): MutableList<R> = flatMap(transform).toMutableList()
+
+fun <T> List<T>.reversedMutable(): MutableList<T> = reversed().toMutableList()
 
 fun <T> Array<T>.reversedMutable(): MutableList<T> = reversed().toMutableList()

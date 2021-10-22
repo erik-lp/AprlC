@@ -98,7 +98,7 @@ valueArguments
     : LPAREN NL* (valueArgument (NL* COMMA NL* valueArgument)* NL*)? RPAREN;
 
 valueArgument
-    : annotations? (simpleIdentifier NL* ASSIGN NL*)? TRIPLE_PERIOD? NL* expression;
+    : annotations? expression;
 
 secondaryConstructor
     : modifierList? INIT NL* functionValueParameters (NL* COLON NL* constructorDelegationCall)? NL* block?;
