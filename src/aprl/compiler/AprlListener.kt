@@ -3,12 +3,14 @@ package aprl.compiler
 import aprl.AprlParser
 import aprl.AprlParserBaseListener
 import aprl.compiler.jvm.*
+import sun.reflect.generics.reflectiveObjects.ParameterizedTypeImpl
 import java.io.File
 import java.lang.reflect.Modifier as JModifier
 import java.lang.reflect.Parameter
 import java.lang.reflect.ParameterizedType
 import java.lang.reflect.WildcardType
 import java.util.*
+import javax.swing.plaf.nimbus.State
 import java.lang.reflect.Constructor as JConstructor
 import java.lang.reflect.Type as JType
 
@@ -363,7 +365,6 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
                             with(identifier.simpleIdentifier().last()) { position + text.length },
                             "This type has a constructor and thus must be initialized here")
                     }
-                    // TODO: check correctness of value arguments
                     if (getValidConstructor(superClass.constructors, valueArguments) == null) {
                         throw Error(simpleName, delegationSpecifier.valueArguments().position, "No constructor can be called with the arguments supplied")
                     }
@@ -375,17 +376,379 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
         }
         // TODO: add superConstructorCall to existing constructor(s), or generate a simple constructor
         // TODO: class members
-        with(ctx.classBody()) {
-        
+        val classMembers = mutableListOf<Any>()
+        if (ctx.primaryConstructor() != null) {
+            if (superConstructorCall != null) {
+                classMembers.add(superCallConstructor(parseConstructor(ctx.primaryConstructor()), superConstructorCall))
+            } else {
+                classMembers.add(parseConstructor(ctx.primaryConstructor()))
+            }
+        } else {
+            if (superConstructorCall != null) {
+                classMembers.add(superCallConstructor(clazz, superConstructorCall))
+            } else {
+                classMembers.add(Constructor(clazz, mutableListOf(), mutableListOf(Modifier.PUBLIC), mutableListOf(), mutableListOf()))
+            }
+        }
+        if (ctx.classBody()?.classMember()?.isNotEmpty() == true) { // not empty
+            for (classMember in ctx.classBody().classMember()) {
+                with(classMember) {
+                    if (topLevelObject() != null) {
+                        classMembers.add(parseInnerTopLevelObject(topLevelObject()))
+                    } else if (secondaryConstructor() != null) {
+                        classMembers.add(parseSecondaryConstructor(secondaryConstructor()))
+                    } else if (loadScript() != null) {
+                        classMembers.add(parseLoadScript(loadScript()))
+                    } else if (initializerBody() != null) {
+                        (classMembers[0] as Constructor).statements.addAll(parseInitializerBody(initializerBody()))
+                    } else if (partnerDeclaration() != null) {
+                        classMembers.addAll(parsePartnerDeclaration(partnerDeclaration()))
+                    } else {
+                        throw InternalError("Expected ClassMemberContext ($classMember) to have topLevelObject, secondaryConstructor, loadScript, initializerBody or partnerDeclaration")
+                    }
+                }
+            }
         }
         topLevelObjects.add(clazz)
     }
     
-    private fun generateBaseConstructor(clazz: Clazz, superArguments: ValueArguments): ConstructorFactory {
-        val const = ConstructorFactory(clazz)
-        const.modifiers.add(Modifier.PUBLIC)
-        const.statements.add(SuperCall(superArguments))
-        return const
+    private fun parseInnerTopLevelObject(ctx: AprlParser.TopLevelObjectContext): NestedTopLevelObject {
+        TODO()
+    }
+    
+    private fun parseSecondaryConstructor(ctx: AprlParser.SecondaryConstructorContext): Constructor {
+        TODO()
+    }
+    
+    private fun parseLoadScript(ctx: AprlParser.LoadScriptContext): LoadScript {
+        val statements = parseBlock(ctx.block())
+        return LoadScript(statements)
+    }
+    
+    private fun parseStatement(ctx: AprlParser.StatementContext) : MutableList<out Statement> {
+        return with(ctx) {
+            if (localVariableDeclaration() != null) {
+                parseLocalVariableDeclaration(localVariableDeclaration())
+            } else if (assignment() != null) {
+                mutableListOf(parseAssignment(assignment()))
+            } else if (loopStatement() != null) {
+                mutableListOf(parseLoopStatement(loopStatement()))
+            } else if (expression() != null) {
+                mutableListOf(parseExpression(expression()))
+            } else {
+                throw InternalError("Expected StatementContext ($ctx) to have localVariableDeclaration, assignment, loopStatement or expression")
+            }
+        }
+    }
+    
+    private fun parseAssignment(ctx: AprlParser.AssignmentContext): Assignment {
+        val assignableExpression = parseAssignableExpression(ctx.assignableExpression())
+        val operator = parseAssignmentOperator(ctx.assignmentOperator())
+        val expression = parseExpression(ctx.expression())
+        val to = evaluateAssignableExpression(assignableExpression)
+        val from = evaluateExpression(expression)
+        if (!isInBound(from.first, from.second, to.first, to.second)) {
+            throw Error(simpleName, ctx.expression().position, "Type mismatch: Inferred type is ${from.toJava()} but ${to.toJava()} was expected")
+        }
+        return Assignment(assignableExpression, operator, expression)
+    }
+    
+    private fun parseAssignableExpression(ctx: AprlParser.AssignableExpressionContext): AssignableExpression {
+        if (ctx.parenthesizedAssignableExpression() != null) {
+            return parseAssignableExpression(ctx.parenthesizedAssignableExpression().assignableExpression())
+        }
+        val expression = parseExpression(ctx.expression())
+        val assignableSuffixes = ctx.assignableSuffix().mapMutable { parseAssignableSuffix(it) }
+        return AssignableExpression(expression, assignableSuffixes)
+    }
+    
+    private fun parseAssignableSuffix(ctx: AprlParser.AssignableSuffixContext): AssignableSuffix {
+        return with(ctx) {
+            if (indexingSuffix() != null) {
+                parseIndexingSuffix(ctx.indexingSuffix())
+            } else if (navigationSuffix() != null) {
+                parseNavigationSuffix(navigationSuffix())
+            } else {
+                throw InternalError("Expected AssignableSuffixContext ($ctx) to be indexingSuffix or navigationSuffix")
+            }
+        }
+    }
+    
+    private fun parseIndexingSuffix(ctx: AprlParser.IndexingSuffixContext): IndexingSuffix {
+        val expressions = ctx.expression().mapMutable { parseExpression(it) }
+        return IndexingSuffix(expressions)
+    }
+    
+    private fun parseNavigationSuffix(ctx: AprlParser.NavigationSuffixContext): NavigationSuffix {
+        val operator = parseMemberAccessOperator(ctx.memberAccessOperator())
+        val identifier = ctx.simpleIdentifier().text
+        return NavigationSuffix(operator, identifier)
+    }
+    
+    private fun parseMemberAccessOperator(ctx: AprlParser.MemberAccessOperatorContext): NavigationSuffix.Operator {
+        return with(ctx) {
+            if (PERIOD() != null) {
+                NavigationSuffix.Operator.PERIOD
+            } else if (QUEST_PERIOD() != null) {
+                NavigationSuffix.Operator.QUEST_PERIOD
+            } else if (DOUBLE_COLON() != null) {
+                NavigationSuffix.Operator.DOUBLE_COLON
+            } else {
+                throw InternalError("Expected MemberAccessOperatorContext ($ctx) to be PERIOD, QUEST_PERIOD or DOUBLE_COLON")
+            }
+        }
+    }
+    
+    private fun parseLoopStatement(ctx: AprlParser.LoopStatementContext): LoopStatement {
+        return with(ctx) {
+            if (forStatement() != null) {
+                parseForStatement(forStatement())
+            } else if (whileStatement() != null) {
+                parseWhileStatement(whileStatement())
+            } else if (doWhileStatement() != null) {
+                parseDoWhileStatement(doWhileStatement())
+            } else {
+                throw InternalError("Expected LoopStatementContext to be for-, while- or doWhileStatement")
+            }
+        }
+    }
+    
+    private fun parseForStatement(ctx: AprlParser.ForStatementContext): ForStatement {
+        val annotations = ctx.annotations()?.let { parseAnnotations(it) } ?: mutableListOf()
+        val variableDeclaration = ctx.variableDeclaration()?.let { parseVariableDeclaration(it) }
+        val multiVariableDeclaration = ctx.multiVariableDeclaration()?.let { parseMultiVariableDeclaration(it) }
+        val expression = parseExpression(ctx.expression())
+        val statements = parseBlock(ctx.block())
+        return ForStatement(annotations, variableDeclaration, multiVariableDeclaration, expression, statements)
+    }
+    
+    private fun parseWhileStatement(ctx: AprlParser.WhileStatementContext): WhileStatement {
+        val expression = parseExpression(ctx.expression())
+        val statements = parseBlock(ctx.block())
+        return WhileStatement(expression, statements)
+    }
+    
+    private fun parseDoWhileStatement(ctx: AprlParser.DoWhileStatementContext): DoWhileStatement {
+        val statements = parseBlock(ctx.block())
+        val expression = parseExpression(ctx.expression())
+        return DoWhileStatement(statements, expression)
+    }
+    
+    private fun parseAssignmentOperator(ctx: AprlParser.AssignmentOperatorContext): Assignment.Operator {
+        return with(ctx) {
+            if (ASSIGN() != null) {
+                Assignment.Operator.ASSIGN
+            } else if (DEFINE() != null) {
+                Assignment.Operator.DEFINE
+            } else if (ADD_ASSIGN() != null) {
+                Assignment.Operator.ADD_ASSIGN
+            } else if (SUB_ASSIGN() != null) {
+                Assignment.Operator.SUB_ASSIGN
+            } else if (MUL_ASSIGN() != null) {
+                Assignment.Operator.MUL_ASSIGN
+            } else if (DIV_ASSIGN() != null) {
+                Assignment.Operator.DIV_ASSIGN
+            } else if (MOD_ASSIGN() != null) {
+                Assignment.Operator.MOD_ASSIGN
+            } else if (EXP_ASSIGN() != null) {
+                Assignment.Operator.EXP_ASSIGN
+            } else if (CONJ_ASSIGN() != null) {
+                Assignment.Operator.CONJ_ASSIGN
+            } else if (DISJ_ASSIGN() != null) {
+                Assignment.Operator.DISJ_ASSIGN
+            } else if (XOR_ASSIGN() != null) {
+                Assignment.Operator.XOR_ASSIGN
+            } else if (ELVIS_ASSIGN() != null) {
+                Assignment.Operator.ELVIS_ASSIGN
+            } else {
+                throw InternalError("Expected AssignmentOperatorContext ($ctx) to be ASSIGN, DEFINE, ADD_ASSIGN, SUB_ASSIGN, MUL_ASSIGN, DIV_ASSIGN, MOD_ASSIGN, EXP_ASSIGN, CONJ_ASSIGN, DISJ_ASSIGN, XOR_ASSIGN or ELVIS_ASSIGN")
+            }
+        }
+    }
+    
+    private fun parseExpression(ctx: AprlParser.ExpressionContext): Expression {
+        val disjunction = parseDisjunction(ctx.disjunction())
+        return Expression(disjunction)
+    }
+    
+    private fun parseDisjunction(ctx: AprlParser.DisjunctionContext): Disjunction {
+        val conjunction = parseConjunction(ctx.conjunction(0))
+        val additionalConjunctions = ctx.conjunction().drop(1).mapMutable { parseConjunction(it) }
+        return Disjunction(conjunction, additionalConjunctions)
+    }
+    
+    private fun parseConjunction(ctx: AprlParser.ConjunctionContext): Conjunction {
+        val equalityComparison = parseEqualityComparison(ctx.equalityComparison(0))
+        val additionalEqualityComparisons = ctx.equalityComparison().drop(1).mapMutable { parseEqualityComparison(it) }
+        return Conjunction(equalityComparison, additionalEqualityComparisons)
+    }
+    
+    private fun parseEqualityComparison(ctx: AprlParser.EqualityComparisonContext): EqualityComparison {
+        val identityComparison = parseIdentityComparison(ctx.identityComparison(0))
+        val additionalIdentityComparisons = ctx.identityComparison().drop(1).mapMutable { parseIdentityComparison(it) }
+        return EqualityComparison(identityComparison, additionalIdentityComparisons)
+    }
+    
+    private fun parseIdentityComparison(ctx: AprlParser.IdentityComparisonContext): IdentityComparison {
+        val comparison = parseComparison(ctx.comparison(0))
+        val additionalComparisons = ctx.comparison().drop(1).mapMutable { parseComparison(it) }
+        return IdentityComparison(comparison, additionalComparisons)
+    }
+    
+    private fun parseComparison(ctx: AprlParser.ComparisonContext): Comparison {
+        val callExpression = parseCallExpression(ctx.callExpression(0))
+        val additionalCallExpressions = ctx.callExpression().drop(1).mapIndexedMutable { i, it -> parseComparisonOperator(ctx.comparisonOperator(i)) to parseCallExpression(it) }
+        return Comparison(callExpression, additionalCallExpressions)
+    }
+    
+    private fun parseComparisonOperator(ctx: AprlParser.ComparisonOperatorContext): Comparison.Operator {
+        return with(ctx) {
+            if (LANGLE() != null || NRANGLE() != null) {
+                Comparison.Operator.LT
+            } else if (RANGLE() != null || NLANGLE() != null) {
+                Comparison.Operator.GT
+            } else if (LEQ() != null || NGEQ() != null) {
+                Comparison.Operator.LEQ
+            } else if (GEQ() != null || NLEQ() != null) {
+                Comparison.Operator.GEQ
+            } else if (SPACESHIP() != null) {
+                Comparison.Operator.SPACESHIP
+            } else {
+                throw InternalError("Expected ComparisonOperatorContext ($ctx) to be LANGLE, NLANGLE, RANGLE, NRANGLE, LEQ, NLEQ, GEQ, NGEQ or SPACESHIP")
+            }
+        }
+    }
+    
+    private fun parseCallExpression(ctx: AprlParser.CallExpressionContext): CallExpression {
+        val namedInfix = parseNamedInfix(ctx.namedInfixExpression())
+        val callSuffixes = ctx.callSuffix()?.mapMutable { parseCallSuffix(it) } ?: mutableListOf()
+        return CallExpression(namedInfix, callSuffixes)
+    }
+    
+    private fun parseCallSuffix(ctx: AprlParser.CallSuffixContext): CallSuffix {
+        val typeArguments = ctx.typeArguments()?.let { parseTypeArguments(it) }
+        val lambdaCallSuffix = ctx.lambdaCallSuffix()?.let { parseLambdaCallSuffix(it) }
+        val valueArguments = ctx.valueArguments()?.let { parseValueArguments(it) }
+        return CallSuffix(typeArguments, lambdaCallSuffix, valueArguments)
+    }
+    
+    private fun parseLambdaCallSuffix(ctx: AprlParser.LambdaCallSuffixContext): LambdaCallSuffix {
+        val valueArguments = ctx.valueArguments()?.let { parseValueArguments(it) }
+        val annotatedLambda = parseAnnotatedLambda(ctx.annotatedLambda())
+        return LambdaCallSuffix(valueArguments, annotatedLambda)
+    }
+    
+    private fun parseAnnotatedLambda(ctx: AprlParser.AnnotatedLambdaContext): AnnotatedLambda {
+        val annotations = ctx.annotations()?.let { parseAnnotations(it) } ?: mutableListOf()
+        val label = ctx.labelDefinition()?.simpleIdentifier()?.text
+        val lambdaLiteral = parseLambdaLiteral(ctx.lambdaLiteral())
+        return AnnotatedLambda(annotations, label, lambdaLiteral)
+    }
+    
+    private fun parseLambdaLiteral(ctx: AprlParser.LambdaLiteralContext) : LambdaLiteral {
+        val parameters = ctx.lambdaParameters()?.lambdaParameter()?.mapMutable { parseLambdaParameter(it) } ?: mutableListOf()
+        val statements = ctx.statements().statement().flatMapMutable { parseStatement(it) }
+        return LambdaLiteral(parameters, statements)
+    }
+    
+    private fun parseLambdaParameter(ctx: AprlParser.LambdaParameterContext): LambdaParameter {
+        val variableDeclaration = ctx.variableDeclaration()?.let { parseVariableDeclaration(it) }
+        val multiVariableDeclaration = ctx.multiVariableDeclaration()?.let { parseMultiVariableDeclaration(it) }
+        val type = ctx.type()?.let { parseType(it) }
+        return LambdaParameter(variableDeclaration, multiVariableDeclaration, type)
+    }
+    
+    private fun parseVariableDeclaration(ctx: AprlParser.VariableDeclarationContext): VariableDeclaration {
+        val annotations = ctx.annotations()?.let { parseAnnotations(it) } ?: mutableListOf()
+        val name = ctx.simpleIdentifier().text
+        val type = parseType(ctx.type())
+        return VariableDeclaration(annotations, name, type)
+    }
+    
+    private fun parseMultiVariableDeclaration(ctx: AprlParser.MultiVariableDeclarationContext): MultiVariableDeclaration {
+        val variableDeclaration = parseVariableDeclaration(ctx.variableDeclaration(0))
+        val additionalVariableDeclarations = ctx.variableDeclaration().drop(1).mapMutable { parseVariableDeclaration(it) }
+        return MultiVariableDeclaration(variableDeclaration, additionalVariableDeclarations)
+    }
+    
+    private fun parseNamedInfix(ctx: AprlParser.NamedInfixExpressionContext): NamedInfixExpression {
+        TODO("Work out NamedInfixExpression first")
+    }
+    
+    private fun parseLocalVariableDeclaration(ctx: AprlParser.LocalVariableDeclarationContext): MutableList<LocalVariable> {
+        return with(ctx) {
+            val annotations = annotations()?.let { parseAnnotations(it) } ?: mutableListOf()
+            val final = CONST() != null || VAL() != null
+            if (variableDeclaration() != null) {
+                mutableListOf(parseLocalVariable(annotations, final, variableDeclaration(), expression()))
+            } else {
+                parseMultiLocalVariable(annotations, final, multiVariableDeclaration(), expression())
+            }
+        }
+    }
+    
+    private fun parseLocalVariable(annotations: Annotations, final: Boolean, variableDeclaration: AprlParser.VariableDeclarationContext, expression: AprlParser.ExpressionContext?): LocalVariable {
+        return parseLocalVariable(annotations, final, variableDeclaration, expression?.let { parseExpression(it) }, expression?.position)
+    }
+    
+    private fun parseLocalVariable(annotations: Annotations, final: Boolean, variableDeclaration: AprlParser.VariableDeclarationContext, expression: Expression?, expressionPosition: Pair<Int, Int>?): LocalVariable {
+        annotations.addAll(variableDeclaration.annotations()?.let { parseAnnotations(it) } ?: mutableListOf())
+        val type: Pair<Class<*>, TypeArgument?>
+        if (variableDeclaration.type() != null) {
+            type = parseType(variableDeclaration.type()).let { Pair(it.toJavaType(), it.typeArguments) }
+            if (expression != null) {
+                checkType(expression, expressionPosition!!, type)
+            }
+        } else {
+            if (expression != null) {
+                type = evaluateExpression(expression)
+            } else {
+                throw Error(simpleName, variableDeclaration.simpleIdentifier().position, "Variable must either have a type annotation or be initialized")
+            }
+        }
+        return LocalVariable(variableDeclaration.simpleIdentifier().text, type, final, expression)
+    }
+    
+    private fun parseMultiLocalVariable(annotations: Annotations, final: Boolean, multiVariableDeclaration: AprlParser.MultiVariableDeclarationContext, expression: AprlParser.ExpressionContext?): MutableList<LocalVariable> {
+        return multiVariableDeclaration.variableDeclaration().mapMutable { parseLocalVariable(annotations, final, it, expression) }
+    }
+    
+    private fun checkType(expression: AprlParser.ExpressionContext, type: Pair<Class<*>, TypeArgument?>) {
+        checkType(parseExpression(expression), expression.position, type)
+    }
+    
+    private fun checkType(expression: Expression, expressionPosition: Pair<Int, Int>, type: Pair<Class<*>, TypeArgument?>) {
+        with(evaluateExpression(expression)) {
+            if (!isInBound(first, second, type.first, type.second)) {
+                throw Error(simpleName, expressionPosition, "Type mismatch: inferred type is ${this.toJava()} but ${type.toJava()} was expected")
+            }
+        }
+    }
+    
+    private fun parseInitializerBody(ctx: AprlParser.InitializerBodyContext): Statements {
+        return parseBlock(ctx.block())
+    }
+    
+    private fun parseBlock(ctx: AprlParser.BlockContext): Statements {
+        return ctx.statements().statement()?.flatMapMutable { parseStatement(it) } ?: mutableListOf()
+    }
+    
+    private fun parsePartnerDeclaration(ctx: AprlParser.PartnerDeclarationContext): MutableList<ClassMember> {
+        TODO()
+    }
+    
+    private fun superCallConstructor(baseConstructor: Constructor, superArguments: ValueArguments): Constructor {
+        baseConstructor.modifiers.add(Modifier.PUBLIC)
+        baseConstructor.statements.add(0, SuperCall(superArguments))
+        return baseConstructor
+    }
+    
+    private fun superCallConstructor(clazz: Clazz, superArguments: ValueArguments): Constructor {
+        return Constructor(clazz, mutableListOf(), mutableListOf(Modifier.PUBLIC), mutableListOf(), mutableListOf(SuperCall(superArguments)))
+    }
+    
+    private fun parseConstructor(ctx: AprlParser.PrimaryConstructorContext): Constructor {
+        TODO("AprlListener.parseConstructor()")
     }
     
     private fun getValidConstructor(constructors: Array<JConstructor<*>>, valueArguments: ValueArguments): JConstructor<*>? {
@@ -432,6 +795,10 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
         TODO()
     }
     
+    private fun evaluateAssignableExpression(assignableExpression: AssignableExpression): Pair<Class<*>, TypeArgument?> {
+        TODO()
+    }
+    
     private fun checkTypeArguments(
         clazz: Class<*>,
         typeArguments: AprlParser.TypeArgumentsContext?,
@@ -461,7 +828,7 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
                     } else {
                         val type: Type = parseType(typeProjection.type())
                         for (bound in superTypeParameter.bounds) {
-                            if (!isInBound(type.toJava(), type.typeArguments, bound)) {
+                            if (!isInBound(type.toJavaType(), type.typeArguments, bound)) {
                                 throw Error(simpleName, typeProjection.position, "Type argument is not within bounds (expected ${bound.typeName})")
                             }
                         }
@@ -485,7 +852,7 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
                 val condition2 = with(typeArguments?.typeProjections ?: emptyList()) {
                     val sameSize = size == bound.actualTypeArguments.size
                     val matching = allIndexed { i, typeProjection ->
-                        typeProjection.wildcard || isInBound(typeProjection.type!!.toJava(), typeProjection.type.typeArguments, bound.actualTypeArguments[i])
+                        typeProjection.wildcard || isInBound(typeProjection.type!!.toJavaType(), typeProjection.type.typeArguments, bound.actualTypeArguments[i])
                     }
                     sameSize && matching
                 }
@@ -500,6 +867,11 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
                 throw InternalError("Didn't expect bound $bound to be ${bound.javaClass.name}")
             }
         }
+    }
+    
+    private fun isInBound(clazz1: Class<*>, typeArguments1: TypeArgument?, clazz2: Class<*>, typeArguments2: TypeArgument?): Boolean {
+        val type: JType = if (typeArguments2 != null) ParameterizedTypeImpl.make(clazz2, typeArguments2.toJava(), null) else clazz2
+        return isInBound(clazz1, typeArguments1, type)
     }
     
     private fun JType.toPlainClass(): Class<*> {
@@ -697,7 +1069,7 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
         TODO()
     }
     
-    private fun parseSingleAnnotation(annotation: AprlParser.UnescapedAnnotationContext): Pair<Class<*>, ValueArguments> {
+    private fun parseSingleAnnotation(annotation: AprlParser.UnescapedAnnotationContext): Triple<Class<*>, ValueArguments, AnnotationRetention> {
         TODO()
     }
     
@@ -752,345 +1124,5 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     private fun parseTopLevelProperty(ctx: AprlParser.PropertyDeclarationContext) {
         enclosingClassRequired = true
     }
-    
-    override fun enterClassDeclaration(ctx: AprlParser.ClassDeclarationContext) {}
-    
-    override fun enterPrimaryConstructor(ctx: AprlParser.PrimaryConstructorContext) {}
-    
-    override fun enterClassParameters(ctx: AprlParser.ClassParametersContext) {}
-    
-    override fun enterClassParameter(ctx: AprlParser.ClassParameterContext) {}
-    
-    override fun enterDelegationSpecifiers(ctx: AprlParser.DelegationSpecifiersContext) {}
-    
-    override fun enterAnnotatedDelegationSpecifier(ctx: AprlParser.AnnotatedDelegationSpecifierContext) {}
-    
-    override fun enterDelegationSpecifier(ctx: AprlParser.DelegationSpecifierContext) {}
-    
-    override fun enterValueArguments(ctx: AprlParser.ValueArgumentsContext) {}
-    
-    override fun enterValueArgument(ctx: AprlParser.ValueArgumentContext) {}
-    
-    override fun enterSecondaryConstructor(ctx: AprlParser.SecondaryConstructorContext) {}
-    
-    override fun enterConstructorDelegationCall(ctx: AprlParser.ConstructorDelegationCallContext) {}
-    
-    override fun enterClassBody(ctx: AprlParser.ClassBodyContext) {}
-    
-    override fun enterClassMember(ctx: AprlParser.ClassMemberContext) {}
-    
-    override fun enterLoadScript(ctx: AprlParser.LoadScriptContext) {}
-    
-    override fun enterInitializerBody(ctx: AprlParser.InitializerBodyContext) {}
-    
-    override fun enterPartnerDeclaration(ctx: AprlParser.PartnerDeclarationContext) {}
-    
-    override fun enterTypeArguments(ctx: AprlParser.TypeArgumentsContext) {}
-    
-    override fun enterTypeProjection(ctx: AprlParser.TypeProjectionContext) {}
-    
-    override fun enterTypeProjectionModifierList(ctx: AprlParser.TypeProjectionModifierListContext) {}
-    
-    override fun enterTypeProjectionModifier(ctx: AprlParser.TypeProjectionModifierContext) {}
-    
-    override fun enterTypeParameters(ctx: AprlParser.TypeParametersContext) {}
-    
-    override fun enterTypeParameter(ctx: AprlParser.TypeParameterContext) {}
-    
-    override fun enterTypeParameterModifierList(ctx: AprlParser.TypeParameterModifierListContext) {}
-    
-    override fun enterTypeParameterModifier(ctx: AprlParser.TypeParameterModifierContext) {}
-    
-    override fun enterReificationModifier(ctx: AprlParser.ReificationModifierContext) {}
-    
-    override fun enterVarianceModifier(ctx: AprlParser.VarianceModifierContext) {}
-    
-    override fun enterType(ctx: AprlParser.TypeContext) {}
-    
-    override fun enterFunctionType(ctx: AprlParser.FunctionTypeContext) {}
-    
-    override fun enterReceiverType(ctx: AprlParser.ReceiverTypeContext) {}
-    
-    override fun enterFunctionTypeParameters(ctx: AprlParser.FunctionTypeParametersContext) {}
-    
-    override fun enterParenthesizedType(ctx: AprlParser.ParenthesizedTypeContext) {}
-    
-    override fun enterArrayType(ctx: AprlParser.ArrayTypeContext) {}
-    
-    override fun enterNullableType(ctx: AprlParser.NullableTypeContext) {}
-    
-    override fun enterStructDeclaration(ctx: AprlParser.StructDeclarationContext) {}
-    
-    override fun enterStructBody(ctx: AprlParser.StructBodyContext) {}
-    
-    override fun enterStructMember(ctx: AprlParser.StructMemberContext) {}
-    
-    override fun enterEnumDeclaration(ctx: AprlParser.EnumDeclarationContext) {}
-    
-    override fun enterEnumBody(ctx: AprlParser.EnumBodyContext) {}
-    
-    override fun enterEnumEntries(ctx: AprlParser.EnumEntriesContext) {}
-    
-    override fun enterEnumEntry(ctx: AprlParser.EnumEntryContext) {}
-    
-    override fun enterExtensionDeclaration(ctx: AprlParser.ExtensionDeclarationContext) {}
-    
-    override fun enterExtensionBody(ctx: AprlParser.ExtensionBodyContext) {}
-    
-    override fun enterExtensionMember(ctx: AprlParser.ExtensionMemberContext) {}
-    
-    override fun enterPropertyDeclaration(ctx: AprlParser.PropertyDeclarationContext) {}
-    
-    override fun enterVariableDeclaration(ctx: AprlParser.VariableDeclarationContext) {}
-    
-    override fun enterMultiVariableDeclaration(ctx: AprlParser.MultiVariableDeclarationContext) {}
-    
-    override fun enterPropertyBody(ctx: AprlParser.PropertyBodyContext) {}
-    
-    override fun enterGetter(ctx: AprlParser.GetterContext) {}
-    
-    override fun enterSetter(ctx: AprlParser.SetterContext) {}
-    
-    override fun enterFunctionValueParameterWithOptionalType(ctx: AprlParser.FunctionValueParameterWithOptionalTypeContext) {}
-    
-    override fun enterParameterModifiers(ctx: AprlParser.ParameterModifiersContext) {}
-    
-    override fun enterParameterWithOptionalType(ctx: AprlParser.ParameterWithOptionalTypeContext) {}
-    
-    override fun enterFunctionDeclaration(ctx: AprlParser.FunctionDeclarationContext) {}
-    
-    override fun enterFunctionValueParameters(ctx: AprlParser.FunctionValueParametersContext) {}
-    
-    override fun enterFunctionValueParameter(ctx: AprlParser.FunctionValueParameterContext) {}
-    
-    override fun enterParameter(ctx: AprlParser.ParameterContext) {}
-    
-    override fun enterFunctionBody(ctx: AprlParser.FunctionBodyContext) {}
-    
-    override fun enterBlock(ctx: AprlParser.BlockContext) {}
-    
-    override fun enterStatements(ctx: AprlParser.StatementsContext) {}
-    
-    override fun enterStatement(ctx: AprlParser.StatementContext) {}
-    
-    override fun enterLoopStatement(ctx: AprlParser.LoopStatementContext) {}
-    
-    override fun enterForStatement(ctx: AprlParser.ForStatementContext) {}
-    
-    override fun enterWhileStatement(ctx: AprlParser.WhileStatementContext) {}
-    
-    override fun enterDoWhileStatement(ctx: AprlParser.DoWhileStatementContext) {}
-    
-    override fun enterAssignment(ctx: AprlParser.AssignmentContext) {}
-    
-    override fun enterExpression(ctx: AprlParser.ExpressionContext) {}
-    
-    override fun enterDisjunction(ctx: AprlParser.DisjunctionContext) {}
-    
-    override fun enterConjunction(ctx: AprlParser.ConjunctionContext) {}
-    
-    override fun enterEqualityComparison(ctx: AprlParser.EqualityComparisonContext) {}
-    
-    override fun enterIdentityComparison(ctx: AprlParser.IdentityComparisonContext) {}
-    
-    override fun enterComparison(ctx: AprlParser.ComparisonContext) {}
-    
-    override fun enterCallExpression(ctx: AprlParser.CallExpressionContext) {}
-    
-    override fun enterNamedInfixExpression(ctx: AprlParser.NamedInfixExpressionContext) {}
-    
-    override fun enterElvisExpression(ctx: AprlParser.ElvisExpressionContext) {}
-    
-    override fun enterInfixFunctionCall(ctx: AprlParser.InfixFunctionCallContext) {}
-    
-    override fun enterRangeExpression(ctx: AprlParser.RangeExpressionContext) {}
-    
-    override fun enterXorExpression(ctx: AprlParser.XorExpressionContext) {}
-    
-    override fun enterAdditiveExpression(ctx: AprlParser.AdditiveExpressionContext) {}
-    
-    override fun enterMultiplicativeExpression(ctx: AprlParser.MultiplicativeExpressionContext) {}
-    
-    override fun enterExponentialExpression(ctx: AprlParser.ExponentialExpressionContext) {}
-    
-    override fun enterAsExpression(ctx: AprlParser.AsExpressionContext) {}
-    
-    override fun enterPrefixUnaryExpression(ctx: AprlParser.PrefixUnaryExpressionContext) {}
-    
-    override fun enterPostfixUnaryExpression(ctx: AprlParser.PostfixUnaryExpressionContext) {}
-    
-    override fun enterAtomicExpression(ctx: AprlParser.AtomicExpressionContext) {}
-    
-    override fun enterParenthesizedExpression(ctx: AprlParser.ParenthesizedExpressionContext) {}
-    
-    override fun enterContextualReference(ctx: AprlParser.ContextualReferenceContext) {}
-    
-    override fun enterCallableReference(ctx: AprlParser.CallableReferenceContext) {}
-    
-    override fun enterAnonymousObjectLiteral(ctx: AprlParser.AnonymousObjectLiteralContext) {}
-    
-    override fun enterCollectionLiteral(ctx: AprlParser.CollectionLiteralContext) {}
-    
-    override fun enterThisExpression(ctx: AprlParser.ThisExpressionContext) {}
-    
-    override fun enterSuperExpression(ctx: AprlParser.SuperExpressionContext) {}
-    
-    override fun enterConditionalExpression(ctx: AprlParser.ConditionalExpressionContext) {}
-    
-    override fun enterIfExpression(ctx: AprlParser.IfExpressionContext) {}
-    
-    override fun enterControlStructureBody(ctx: AprlParser.ControlStructureBodyContext) {}
-    
-    override fun enterMatchExpression(ctx: AprlParser.MatchExpressionContext) {}
-    
-    override fun enterMatchEntry(ctx: AprlParser.MatchEntryContext) {}
-    
-    override fun enterOptionalTryExpression(ctx: AprlParser.OptionalTryExpressionContext) {}
-    
-    override fun enterTryExpression(ctx: AprlParser.TryExpressionContext) {}
-    
-    override fun enterCatchBlock(ctx: AprlParser.CatchBlockContext) {}
-    
-    override fun enterFinallyBlock(ctx: AprlParser.FinallyBlockContext) {}
-    
-    override fun enterJumpExpression(ctx: AprlParser.JumpExpressionContext) {}
-    
-    override fun enterTriggerExpression(ctx: AprlParser.TriggerExpressionContext) {}
-    
-    override fun enterReturnExpression(ctx: AprlParser.ReturnExpressionContext) {}
-    
-    override fun enterContinueExpression(ctx: AprlParser.ContinueExpressionContext) {}
-    
-    override fun enterBreakExpression(ctx: AprlParser.BreakExpressionContext) {}
-    
-    override fun enterLabelDefinition(ctx: AprlParser.LabelDefinitionContext) {}
-    
-    override fun enterLabelReference(ctx: AprlParser.LabelReferenceContext) {}
-    
-    override fun enterLiteralConstant(ctx: AprlParser.LiteralConstantContext) {}
-    
-    override fun enterNullLiteral(ctx: AprlParser.NullLiteralContext) {}
-    
-    override fun enterBoolLiteral(ctx: AprlParser.BoolLiteralContext) {}
-    
-    override fun enterTrileanLiteral(ctx: AprlParser.TrileanLiteralContext) {}
-    
-    override fun enterIntegerLiteral(ctx: AprlParser.IntegerLiteralContext) {}
-    
-    override fun enterLongLiteral(ctx: AprlParser.LongLiteralContext) {}
-    
-    override fun enterShortLiteral(ctx: AprlParser.ShortLiteralContext) {}
-    
-    override fun enterByteLiteral(ctx: AprlParser.ByteLiteralContext) {}
-    
-    override fun enterFloatLiteral(ctx: AprlParser.FloatLiteralContext) {}
-    
-    override fun enterDoubleLiteral(ctx: AprlParser.DoubleLiteralContext) {}
-    
-    override fun enterComplexLiteral(ctx: AprlParser.ComplexLiteralContext) {}
-    
-    override fun enterCharacterLiteral(ctx: AprlParser.CharacterLiteralContext) {}
-    
-    override fun enterStringLiteral(ctx: AprlParser.StringLiteralContext) {}
-    
-    override fun enterLineStringLiteral(ctx: AprlParser.LineStringLiteralContext) {}
-    
-    override fun enterMultiLineStringLiteral(ctx: AprlParser.MultiLineStringLiteralContext) {}
-    
-    override fun enterLineStringContent(ctx: AprlParser.LineStringContentContext) {}
-    
-    override fun enterLineStringExpression(ctx: AprlParser.LineStringExpressionContext) {}
-    
-    override fun enterMultiLineStringContent(ctx: AprlParser.MultiLineStringContentContext) {}
-    
-    override fun enterMultiLineStringExpression(ctx: AprlParser.MultiLineStringExpressionContext) {}
-    
-    override fun enterFunctionLiteral(ctx: AprlParser.FunctionLiteralContext) {}
-    
-    override fun enterLambdaLiteral(ctx: AprlParser.LambdaLiteralContext) {}
-    
-    override fun enterLambdaParameters(ctx: AprlParser.LambdaParametersContext) {}
-    
-    override fun enterLambdaParameter(ctx: AprlParser.LambdaParameterContext) {}
-    
-    override fun enterAnonymousFunction(ctx: AprlParser.AnonymousFunctionContext) {}
-    
-    override fun enterAssignmentOperator(ctx: AprlParser.AssignmentOperatorContext) {}
-    
-    override fun enterDisjunctionOperator(ctx: AprlParser.DisjunctionOperatorContext) {}
-    
-    override fun enterConjunctionOperator(ctx: AprlParser.ConjunctionOperatorContext) {}
-    
-    override fun enterEqualityOperator(ctx: AprlParser.EqualityOperatorContext) {}
-    
-    override fun enterIdentityOperator(ctx: AprlParser.IdentityOperatorContext) {}
-    
-    override fun enterComparisonOperator(ctx: AprlParser.ComparisonOperatorContext) {}
-    
-    override fun enterInOperator(ctx: AprlParser.InOperatorContext) {}
-    
-    override fun enterIsOperator(ctx: AprlParser.IsOperatorContext) {}
-    
-    override fun enterElvisOperator(ctx: AprlParser.ElvisOperatorContext) {}
-    
-    override fun enterToOperator(ctx: AprlParser.ToOperatorContext) {}
-    
-    override fun enterXorOperator(ctx: AprlParser.XorOperatorContext) {}
-    
-    override fun enterAdditiveOperator(ctx: AprlParser.AdditiveOperatorContext) {}
-    
-    override fun enterMultiplicativeOperator(ctx: AprlParser.MultiplicativeOperatorContext) {}
-    
-    override fun enterExponentialOperator(ctx: AprlParser.ExponentialOperatorContext) {}
-    
-    override fun enterAsOperator(ctx: AprlParser.AsOperatorContext) {}
-    
-    override fun enterUnaryPrefix(ctx: AprlParser.UnaryPrefixContext) {}
-    
-    override fun enterPrefixUnaryOperator(ctx: AprlParser.PrefixUnaryOperatorContext) {}
-    
-    override fun enterUnaryPostfix(ctx: AprlParser.UnaryPostfixContext) {}
-    
-    override fun enterPostfixUnaryOperator(ctx: AprlParser.PostfixUnaryOperatorContext) {}
-    
-    override fun enterAssignableExpression(ctx: AprlParser.AssignableExpressionContext) {}
-    
-    override fun enterParenthesizedAssignableExpression(ctx: AprlParser.ParenthesizedAssignableExpressionContext) {}
-    
-    override fun enterAssignableSuffix(ctx: AprlParser.AssignableSuffixContext) {}
-    
-    override fun enterCallSuffix(ctx: AprlParser.CallSuffixContext) {}
-    
-    override fun enterAnnotatedLambda(ctx: AprlParser.AnnotatedLambdaContext) {}
-    
-    override fun enterIndexingSuffix(ctx: AprlParser.IndexingSuffixContext) {}
-    
-    override fun enterNavigationSuffix(ctx: AprlParser.NavigationSuffixContext) {}
-    
-    override fun enterMemberAccessOperator(ctx: AprlParser.MemberAccessOperatorContext) {}
-    
-    override fun enterModifierList(ctx: AprlParser.ModifierListContext) {}
-    
-    override fun enterModifier(ctx: AprlParser.ModifierContext) {}
-    
-    override fun enterVisibilityModifier(ctx: AprlParser.VisibilityModifierContext) {}
-    
-    override fun enterInheritanceModifier(ctx: AprlParser.InheritanceModifierContext) {}
-    
-    override fun enterParameterModifier(ctx: AprlParser.ParameterModifierContext) {}
-    
-    override fun enterFunctionModifier(ctx: AprlParser.FunctionModifierContext) {}
-    
-    override fun enterAnnotations(ctx: AprlParser.AnnotationsContext) {}
-    
-    override fun enterAnnotation(ctx: AprlParser.AnnotationContext) {}
-    
-    override fun enterUnescapedAnnotation(ctx: AprlParser.UnescapedAnnotationContext) {}
-    
-    override fun enterIdentifier(ctx: AprlParser.IdentifierContext) {}
-    
-    override fun enterSimpleIdentifier(ctx: AprlParser.SimpleIdentifierContext) {}
-    
-    override fun enterSemi(ctx: AprlParser.SemiContext) {}
     
 }

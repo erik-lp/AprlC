@@ -4,9 +4,44 @@ import kotlin.math.pow
 
 sealed interface ClassMember
 sealed interface StructMember // TODO: StructMember
-sealed interface TopLevelObject : ClassMember
+sealed interface TopLevelObject
+sealed interface NestedTopLevelObject : ClassMember
 
-enum class Modifier(private val java: String?) {
+interface Java {
+    fun toJava(): String
+}
+
+class Constructor(val clazz: Clazz, val annotations: Annotations, val modifiers: MutableList<Modifier>, val parameters: MutableList<JavaParameter>, val statements: Statements) : Java, ClassMember {
+    
+    override fun toJava(): String {
+        val sb = StringBuilder()
+        with(annotations) { sb.append(toJava() + if (isNotEmpty()) "\n" else "") }
+        sb.append(modifiers.joinToString("") { it.toJava() })
+        sb.append(clazz.name)
+        sb.append("(" + parameters.joinToString(", ") { it.toJava() } + ") {")
+        sb.append(statements.joinToString { it.toJava().prependIndent() + "\n" })
+        sb.append("}")
+        return sb.toString()
+    }
+    
+}
+
+class Field(val name: String, val type: Type, val initialValue: Expression?, val final: Boolean, val static: Boolean) : Java {
+    val annotations: Annotations = mutableListOf()
+    val modifiers: MutableList<Modifier> = mutableListOf()
+    
+    override fun toJava(): String {
+        TODO("Not yet implemented")
+    }
+}
+
+class JavaParameter : Java {
+    override fun toJava(): String {
+        TODO("Not yet implemented")
+    }
+}
+
+enum class Modifier(private val java: String?) : Java {
     
     PUBLIC("public "),
     LOCAL(""),
@@ -26,11 +61,11 @@ enum class Modifier(private val java: String?) {
     fun property() = this in PUBLIC..COVER
     fun parameter() = this == PARAMS
     
-    fun toJava(): String = java ?: throw InternalError("$this does not have a java equivalent")
+    override fun toJava(): String = java ?: throw InternalError("$this does not have a java equivalent")
     
 }
 
-class Clazz(val name: String) : TopLevelObject {
+class Clazz(val name: String) : TopLevelObject, NestedTopLevelObject {
     
     val annotations: Annotations = mutableListOf()
     val modifiers: MutableList<Modifier> = mutableListOf()
@@ -42,7 +77,7 @@ class Clazz(val name: String) : TopLevelObject {
     
 }
 
-class Struct(val name: String) : TopLevelObject {
+class Struct(val name: String) : TopLevelObject, NestedTopLevelObject {
     
     val annotations: Annotations? = null
     val modifiers: MutableList<Modifier>? = null
@@ -53,16 +88,26 @@ class Struct(val name: String) : TopLevelObject {
     
 }
 
-class Constructor(val clazz: Clazz) : TopLevelObject {
-    val annotations: Annotations? = null
-    val modifiers: MutableList<Modifier>? = null
-    val thisParameters: ValueArguments? = null
-    val superParameters: ValueArguments? = null
-    val statements: Statements? = null
+abstract class Statement : Java
+
+class SuperCall(val valueArguments: ValueArguments) : Statement() {
+    
+    override fun toJava(): String {
+        val sb = StringBuilder()
+        sb.append("super(")
+        sb.append(valueArguments.toJava())
+        sb.append(");")
+        return sb.toString()
+    }
+    
 }
 
-class Statement {
-
+class LocalVariable(val name: String, val type: Pair<Class<*>, TypeArgument?>, val final: Boolean, val initialValue: Expression?) : Statement() {
+    val annotations: Annotations = mutableListOf()
+    
+    override fun toJava(): String {
+        TODO("Not yet implemented")
+    }
 }
 
 class ValueArgument(val value: Expression) : Java {
@@ -76,18 +121,71 @@ class ValueArgument(val value: Expression) : Java {
     
 }
 
-class Expression : Java {
-    lateinit var disjunction: Disjunction
-    
+class Assignment(val assignTo: AssignableExpression, val op: Operator, val assignFrom: Expression) : Statement() {
+    enum class Operator {
+        ASSIGN,
+        DEFINE,
+        ADD_ASSIGN,
+        SUB_ASSIGN,
+        MUL_ASSIGN,
+        DIV_ASSIGN,
+        MOD_ASSIGN,
+        EXP_ASSIGN,
+        CONJ_ASSIGN,
+        DISJ_ASSIGN,
+        XOR_ASSIGN,
+        ELVIS_ASSIGN
+    }
+    override fun toJava(): String {
+        TODO("Not yet implemented")
+    }
+}
+
+class AssignableExpression(val expression: Expression, val assignableSuffixes: MutableList<AssignableSuffix>) {
+
+}
+
+interface AssignableSuffix
+
+class IndexingSuffix(expressions: MutableList<Expression>) : AssignableSuffix {
+
+}
+
+class NavigationSuffix(val op: Operator, val identifier: String) : AssignableSuffix {
+    enum class Operator {
+        PERIOD,
+        QUEST_PERIOD,
+        DOUBLE_COLON
+    }
+}
+
+abstract class LoopStatement : Statement()
+
+class ForStatement(val annotations: Annotations, val variableDeclaration: VariableDeclaration?, val multiVariableDeclaration: MultiVariableDeclaration?, val expression: Expression, val statements: Statements) : LoopStatement() {
+    override fun toJava(): String {
+        TODO("Not yet implemented")
+    }
+}
+
+class WhileStatement(val expression: Expression, val statements: Statements) : LoopStatement() {
+    override fun toJava(): String {
+        TODO("Not yet implemented")
+    }
+}
+
+class DoWhileStatement(val statements: Statements, val expression: Expression) : LoopStatement() {
+    override fun toJava(): String {
+        TODO("Not yet implemented")
+    }
+}
+
+class Expression(val disjunction: Disjunction) : Statement() {
     override fun toJava(): String {
         return disjunction.toJava()
     }
 }
 
-class Disjunction : Java {
-    lateinit var conjunction: Conjunction
-    lateinit var additionalConjunctions: MutableList<Conjunction>
-    
+class Disjunction(val conjunction: Conjunction, val additionalConjunctions: MutableList<Conjunction>) : Java {
     override fun toJava(): String {
         val sb = StringBuilder()
         sb.append(conjunction.toJava())
@@ -98,10 +196,7 @@ class Disjunction : Java {
     }
 }
 
-class Conjunction : Java {
-    lateinit var equalityComparison: EqualityComparison
-    lateinit var additionalEqualityComparisons: MutableList<EqualityComparison>
-    
+class Conjunction(val equalityComparison: EqualityComparison, val additionalEqualityComparisons: MutableList<EqualityComparison>) : Java {
     override fun toJava(): String {
         val sb = StringBuilder()
         sb.append(equalityComparison.toJava())
@@ -112,69 +207,70 @@ class Conjunction : Java {
     }
 }
 
-class EqualityComparison : Java {
-    lateinit var identityComparison: IdentityComparison
-    lateinit var additionalIdentityComparisons: MutableList<IdentityComparison>
-    
+class EqualityComparison(val identityComparison: IdentityComparison, val additionalIdentityComparisons: MutableList<IdentityComparison>) : Java {
     override fun toJava(): String {
-        // TODO: EqualityComparison.toJava()
-        return "<EQUALITY_COMPARISON>"
+        val sb = StringBuilder()
+        sb.append(identityComparison.toJava())
+        if (additionalIdentityComparisons.isNotEmpty()) {
+            sb.append(additionalIdentityComparisons.joinToString("") { ".equals(" + it.toJava() + ")" })
+        }
+        return sb.toString()
     }
 }
 
-class IdentityComparison {
-    var comparison: Comparison? = null
-    var additionalComparisons: MutableList<Comparison>? = null
+class IdentityComparison(val comparison: Comparison, val additionalComparisons: MutableList<Comparison>) : Java {
+    override fun toJava(): String {
+        val sb = StringBuilder()
+        sb.append(comparison.toJava())
+        if (additionalComparisons.isNotEmpty()) {
+            sb.append(additionalComparisons.joinToString(" == ", " == ") { it.toJava() })
+        }
+        return sb.toString()
+    }
 }
 
-class Comparison {
-    var callExpression: CallExpression? = null
-    var additionalCallExpressions: MutableList<CallExpression>? = null
+class Comparison(val callExpression: CallExpression, val additionalCallExpressions: MutableList<Pair<Operator, CallExpression>>) : Java {
+    enum class Operator {
+        LT, GT, LEQ, GEQ, SPACESHIP
+    }
+    override fun toJava(): String {
+        TODO("Not yet implemented")
+    }
 }
 
-class CallExpression {
-    var namedInfixExpression: NamedInfixExpression? = null
-    var callSuffix: CallSuffix? = null
+class CallExpression(val namedInfixExpression: NamedInfixExpression, val callSuffixes: MutableList<CallSuffix>) : Statement() {
+    override fun toJava(): String {
+        TODO("Not yet implemented")
+    }
 }
 
-class CallSuffix {
-    var typeArguments: MutableList<TypeArgument>? = null
-    var lambdaCallSuffix: LambdaCallSuffix? = null
-    var valueArguments: ValueArguments? = null
+class CallSuffix(val typeArguments: TypeArgument?, val lambdaCallSuffix: LambdaCallSuffix?, val valueArguments: ValueArguments?) : Statement() {
+    override fun toJava(): String {
+        TODO("Not yet implemented")
+    }
 }
 
-class LambdaCallSuffix {
-    var valueArguments: ValueArguments? = null
-    var annotatedLambda: AnnotatedLambda? = null
+class LambdaCallSuffix(val valueArguments: ValueArguments?, val annotatedLambda: AnnotatedLambda) : Statement() {
+    override fun toJava(): String {
+        TODO("Not yet implemented")
+    }
 }
 
-class AnnotatedLambda {
-    var annotations: Annotations? = null
-    var label: String? = null
-    var lambdaLiteral: LambdaLiteral? = null
+class AnnotatedLambda(val annotations: Annotations, val label: String?, val lambdaLiteral: LambdaLiteral) : Statement() {
+    override fun toJava(): String {
+        TODO("Not yet implemented")
+    }
 }
 
-class LambdaLiteral : FunctionLiteral {
-    var parameters: MutableList<LambdaParameter>? = null
-    var statements: Statements? = null
+class LambdaLiteral(val parameters: MutableList<LambdaParameter>, val statements: Statements) : FunctionLiteral {
+
 }
 
-class LambdaParameter {
-    var variableDeclaration: VariableDeclaration? = null
-    var multiVariableDeclaration: MultiVariableDeclaration? = null
-    var type: Type? = null
-}
+class LambdaParameter(val variableDeclaration: VariableDeclaration?, val multiVariableDeclaration: MultiVariableDeclaration?, val type: Type?)
 
-class VariableDeclaration {
-    var annotations: Annotations? = null
-    var name: String? = null
-    var type: Type? = null
-}
+class VariableDeclaration(val annotations: Annotations, val name: String, val type: Type)
 
-class MultiVariableDeclaration {
-    var variableDeclaration: VariableDeclaration? = null
-    var additionalVariableDeclarations: MutableList<VariableDeclaration>? = null
-}
+class MultiVariableDeclaration(val variableDeclaration: VariableDeclaration, val additionalVariableDeclarations: MutableList<VariableDeclaration>)
 
 class NamedInfixExpression {
     
@@ -368,23 +464,23 @@ class BreakExpression : JumpExpression {
 
 }
 
-class Interface(val name: String) : TopLevelObject {
+class Interface(val name: String) : TopLevelObject, NestedTopLevelObject {
 
 }
 
-class Annotation(val name: String) : TopLevelObject {
+class Annotation(val name: String) : TopLevelObject, NestedTopLevelObject {
 
 }
 
-class Enum(val name: String) : TopLevelObject {
+class Enum(val name: String) : TopLevelObject, NestedTopLevelObject {
 
 }
 
-class Document(val name: String) : TopLevelObject {
+class Document(val name: String) : TopLevelObject, NestedTopLevelObject {
 
 }
 
-class Function(val name: String, val returnType: Type) : TopLevelObject {
+class Function(val name: String, val returnType: Type) : TopLevelObject, NestedTopLevelObject {
     var annotations: Annotations? = null
     var modifiers: MutableList<Modifier>? = null
     var parameters: MutableList<MethodParameter>? = null
@@ -393,14 +489,12 @@ class Function(val name: String, val returnType: Type) : TopLevelObject {
 
 data class MethodParameter(val name: String, val type: Type)
 
-class Property(val name: String, val type: Type, val initialValue: Expression? = null, val static: Boolean = false) : TopLevelObject {
+class Property(val name: String, val type: Type, val initialValue: Expression? = null, val static: Boolean = false) : TopLevelObject, NestedTopLevelObject {
     var annotations: Annotations? = null
     var modifiers: MutableList<Modifier>? = null
 }
 
-class LoadScript : ClassMember {
-    var statements: Statements? = null
-}
+class LoadScript(val statements: Statements) : ClassMember
 
 @Suppress("ArrayInDataClass")
 data class TypeParameter(val name: String, val constraints: Array<Type>)

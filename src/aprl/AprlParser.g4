@@ -223,7 +223,7 @@ propertyDeclaration
     : modifierList?
     (DEF | CONST | VAR | VAL)
     (NL* typeParameters)?
-    (NL* (variableDeclaration | multiVariableDeclaration))
+    NL* (variableDeclaration | multiVariableDeclaration)
     (NL* ASSIGN NL* expression)?
     (NL* propertyBody)?;
 
@@ -283,22 +283,28 @@ statements
     : (statement (semi+ statement)*)? semi*;
 
 statement
-    : (labelDefinition | annotation)* NL* (topLevelObject | assignment | loopStatement | expression);
+    : (labelDefinition | annotation)* NL* (localVariableDeclaration | assignment | loopStatement | expression);
+
+localVariableDeclaration
+    : annotations?
+    (DEF | CONST | VAR | VAL)
+    NL* (variableDeclaration | multiVariableDeclaration)
+    (NL* ASSIGN NL* expression)?;
 
 loopStatement
     : forStatement | whileStatement | doWhileStatement;
 
 forStatement
-    : FOR NL* LPAREN NL* annotations? (variableDeclaration | multiVariableDeclaration) NL* IN NL* expression NL* RPAREN NL* controlStructureBody;
+    : FOR NL* LPAREN NL* annotations? (variableDeclaration | multiVariableDeclaration) NL* IN NL* expression NL* RPAREN NL* block;
 
 whileStatement
-    : WHILE NL* LPAREN NL* expression NL* RPAREN NL* controlStructureBody;
+    : WHILE NL* LPAREN NL* expression NL* RPAREN NL* block;
 
 doWhileStatement
-    : DO NL* controlStructureBody NL* WHILE NL* LPAREN NL* expression NL* RPAREN;
+    : DO NL* block NL* WHILE NL* LPAREN NL* expression NL* RPAREN;
 
 assignment
-    : (assignableExpression NL* assignmentOperator)? expression;
+    : assignableExpression NL* assignmentOperator expression;
 
 // Expressions
 
@@ -397,16 +403,13 @@ conditionalExpression
     : ifExpression | matchExpression;
 
 ifExpression
-    : (IF | UNLESS) NL* LPAREN NL* expression NL* RPAREN NL* controlStructureBody (NL* ELSIF NL* LPAREN NL* expression NL* RPAREN NL* controlStructureBody)* (NL* ELSE NL* controlStructureBody)?;
-
-controlStructureBody
-    : block | assignment;
+    : (IF | UNLESS) NL* LPAREN NL* expression NL* RPAREN NL* block (NL* ELSIF NL* LPAREN NL* expression NL* RPAREN NL* block)* (NL* ELSE NL* block)?;
 
 matchExpression
     : MATCH NL* LPAREN NL* expression NL* RPAREN NL* LCURLY NL* (matchEntry NL*)+ NL* RCURLY;
 
 matchEntry
-    : WHEN NL* literalConstant (NL* COMMA NL* literalConstant)* NL* RARROW_THICK NL* controlStructureBody semi? | ELSE NL* RARROW_THICK NL* controlStructureBody;
+    : WHEN NL* literalConstant (NL* COMMA NL* literalConstant)* NL* RARROW_THICK NL* block semi? | ELSE NL* RARROW_THICK NL* block;
 
 optionalTryExpression
     : TRY_QUEST NL* (block | expression);
@@ -589,13 +592,13 @@ postfixUnaryOperator
     : INCR | DECR | DOUBLE_EXCL;
 
 assignableExpression
-    : postfixUnaryExpression assignableSuffix | simpleIdentifier | parenthesizedAssignableExpression;
+    : expression assignableSuffix+ | parenthesizedAssignableExpression;
 
 parenthesizedAssignableExpression
     : LPAREN NL* assignableExpression NL* RPAREN;
 
 assignableSuffix
-    : typeArguments | indexingSuffix | navigationSuffix;
+    : indexingSuffix | navigationSuffix;
 
 // Access operators
 
@@ -612,7 +615,7 @@ indexingSuffix
     : LSQUARE NL* expression (NL* COMMA NL* expression)* NL* RSQUARE;
 
 navigationSuffix
-    : memberAccessOperator (simpleIdentifier | parenthesizedExpression);
+    : memberAccessOperator simpleIdentifier;
 
 memberAccessOperator
     : NL* (PERIOD | QUEST_PERIOD | DOUBLE_COLON) NL*;

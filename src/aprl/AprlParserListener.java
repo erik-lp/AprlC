@@ -758,6 +758,16 @@ public interface AprlParserListener extends ParseTreeListener {
 	 */
 	void exitStatement(AprlParser.StatementContext ctx);
 	/**
+	 * Enter a parse tree produced by {@link AprlParser#localVariableDeclaration}.
+	 * @param ctx the parse tree
+	 */
+	void enterLocalVariableDeclaration(AprlParser.LocalVariableDeclarationContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link AprlParser#localVariableDeclaration}.
+	 * @param ctx the parse tree
+	 */
+	void exitLocalVariableDeclaration(AprlParser.LocalVariableDeclarationContext ctx);
+	/**
 	 * Enter a parse tree produced by {@link AprlParser#loopStatement}.
 	 * @param ctx the parse tree
 	 */
@@ -1087,16 +1097,6 @@ public interface AprlParserListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitIfExpression(AprlParser.IfExpressionContext ctx);
-	/**
-	 * Enter a parse tree produced by {@link AprlParser#controlStructureBody}.
-	 * @param ctx the parse tree
-	 */
-	void enterControlStructureBody(AprlParser.ControlStructureBodyContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link AprlParser#controlStructureBody}.
-	 * @param ctx the parse tree
-	 */
-	void exitControlStructureBody(AprlParser.ControlStructureBodyContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link AprlParser#matchExpression}.
 	 * @param ctx the parse tree

@@ -167,12 +167,16 @@ fun <T> Array<T>.allIndexed(predicate: (Int, T) -> Boolean): Boolean {
 
 fun <T, R> List<T>.mapMutable(transform: (T) -> R): MutableList<R> = map(transform).toMutableList()
 
-fun <T, R> Array<T>.mapMutable(transform: (T) -> R): MutableList<R> = map(transform).toMutableList()
+fun <T, R> Array<out T>.mapMutable(transform: (T) -> R): MutableList<R> = map(transform).toMutableList()
+
+fun <T, R> List<T>.mapIndexedMutable(transform: (Int, T) -> R): MutableList<R> = mapIndexed(transform).toMutableList()
+
+fun <T, R> Array<out T>.mapIndexedMutable(transform: (Int, T) -> R): MutableList<R> = mapIndexed(transform).toMutableList()
 
 fun <T, R> List<T>.flatMapMutable(transform: (T) -> Iterable<R>): MutableList<R> = flatMap(transform).toMutableList()
 
-fun <T, R> Array<T>.flatMapMutable(transform: (T) -> Iterable<R>): MutableList<R> = flatMap(transform).toMutableList()
+fun <T, R> Array<out T>.flatMapMutable(transform: (T) -> Iterable<R>): MutableList<R> = flatMap(transform).toMutableList()
 
 fun <T> List<T>.reversedMutable(): MutableList<T> = reversed().toMutableList()
 
-fun <T> Array<T>.reversedMutable(): MutableList<T> = reversed().toMutableList()
+fun <T> Array<out T>.reversedMutable(): MutableList<T> = reversed().toMutableList()

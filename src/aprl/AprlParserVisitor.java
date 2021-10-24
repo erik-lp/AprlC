@@ -461,6 +461,12 @@ public interface AprlParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitStatement(AprlParser.StatementContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link AprlParser#localVariableDeclaration}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitLocalVariableDeclaration(AprlParser.LocalVariableDeclarationContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link AprlParser#loopStatement}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -658,12 +664,6 @@ public interface AprlParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitIfExpression(AprlParser.IfExpressionContext ctx);
-	/**
-	 * Visit a parse tree produced by {@link AprlParser#controlStructureBody}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitControlStructureBody(AprlParser.ControlStructureBodyContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link AprlParser#matchExpression}.
 	 * @param ctx the parse tree
