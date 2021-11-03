@@ -11,7 +11,7 @@ preamble
     : namespaceHeader? importList;
 
 namespaceHeader
-    : NAMESPACE identifier semi?;
+    : identifier semi?;
 
 importList
     : importHeader*;
@@ -80,10 +80,7 @@ classParameter
     : modifierList? (VAL | VAR)? NL* simpleIdentifier NL* COLON NL* type (NL* ASSIGN NL* expression)?;
 
 delegationSpecifiers
-    : annotatedDelegationSpecifier (NL* COMMA NL* annotatedDelegationSpecifier)*;
-
-annotatedDelegationSpecifier
-    : annotations? delegationSpecifier;
+    : delegationSpecifier (NL* COMMA NL* delegationSpecifier)*;
 
 delegationSpecifier
     : identifier typeArguments? valueArguments?;
@@ -160,7 +157,7 @@ functionType
     : functionTypeParameters NL* RARROW_THICK NL* type;
 
 receiverType
-    : annotations? (parenthesizedType | nullableType | identifier);
+    : parenthesizedType | nullableType | identifier;
 
 functionTypeParameters
     : LPAREN NL* (type (NL* COMMA NL* type)*)? NL* RPAREN;
@@ -215,23 +212,19 @@ extensionBody
     : LCURLY NL* extensionMember* NL* RCURLY;
 
 extensionMember
-    : (functionDeclaration | propertyDeclaration | secondaryConstructor) semi+;
+    : functionDeclaration semi+;
 
 // Property
 
 propertyDeclaration
     : modifierList?
     (DEF | CONST | VAR | VAL)
-    (NL* typeParameters)?
-    NL* (variableDeclaration | multiVariableDeclaration)
+    NL* variableDeclaration
     (NL* ASSIGN NL* expression)?
     (NL* propertyBody)?;
 
 variableDeclaration
     : annotations? simpleIdentifier (NL* COLON NL* type)?;
-
-multiVariableDeclaration
-    : LPAREN NL* variableDeclaration (NL* COMMA NL* variableDeclaration)* NL* RPAREN;
 
 propertyBody
     : LCURLY NL* (getter (semi* setter)? | setter (semi* getter)?)? NL* RCURLY;
@@ -243,13 +236,10 @@ setter
     : modifierList? SETTER NL* ((LPAREN NL* functionValueParameterWithOptionalType NL* RPAREN)? (NL* RARROW NL* type)? NL* functionBody)?;
 
 functionValueParameterWithOptionalType
-        : parameterModifiers? parameterWithOptionalType (NL* ASSIGN NL* expression)?;
-
-parameterModifiers
-        : (annotation | parameterModifier)+;
+    : modifierList? parameterWithOptionalType (NL* ASSIGN NL* expression)?;
 
 parameterWithOptionalType
-        : simpleIdentifier (NL* COLON NL* type)?;
+    : simpleIdentifier (NL* COLON NL* type)?;
 
 // Function
 
@@ -266,7 +256,7 @@ functionValueParameters
     : LPAREN NL* (functionValueParameter (NL* COMMA NL* functionValueParameter)*)? NL* RPAREN;
 
 functionValueParameter
-    : parameterModifiers? parameter (NL* ASSIGN NL* expression)?;
+    : modifierList? parameter (NL* ASSIGN NL* expression)?;
 
 parameter
     : simpleIdentifier NL* COLON NL* type;
@@ -283,19 +273,19 @@ statements
     : (statement (semi+ statement)*)? semi*;
 
 statement
-    : (labelDefinition | annotation)* NL* (localVariableDeclaration | assignment | loopStatement | expression);
+    : annotations? NL* (localVariableDeclaration | assignment | loopStatement | expression);
 
 localVariableDeclaration
     : annotations?
     (DEF | CONST | VAR | VAL)
-    NL* (variableDeclaration | multiVariableDeclaration)
+    NL* variableDeclaration
     (NL* ASSIGN NL* expression)?;
 
 loopStatement
     : forStatement | whileStatement | doWhileStatement;
 
 forStatement
-    : FOR NL* LPAREN NL* annotations? (variableDeclaration | multiVariableDeclaration) NL* IN NL* expression NL* RPAREN NL* block;
+    : FOR NL* LPAREN NL* annotations? variableDeclaration NL* IN NL* expression NL* RPAREN NL* block;
 
 whileStatement
     : WHILE NL* LPAREN NL* expression NL* RPAREN NL* block;
@@ -324,13 +314,13 @@ identityComparison
     : comparison (identityOperator comparison)*;
 
 comparison
-    : callExpression (comparisonOperator callExpression)*;
-
-callExpression
-    : namedInfixExpression callSuffix*;
+    : namedInfixExpression (comparisonOperator namedInfixExpression)*;
 
 namedInfixExpression
-    : elvisExpression (inOperator elvisExpression | isOperator type)*;
+    : elvisExpression namedInfix*;
+
+namedInfix
+    : inOperator elvisExpression | isOperator type;
 
 elvisExpression
     : infixFunctionCall (elvisOperator infixFunctionCall)*;
@@ -368,8 +358,7 @@ atomicExpression
     | literalConstant
     | contextualReference
     | callableReference
-    | functionLiteral
-    | anonymousObjectLiteral
+    | lambdaLiteral
     | collectionLiteral
     | thisExpression
     | superExpression
@@ -385,28 +374,28 @@ contextualReference
     : PERIOD identifier;
 
 callableReference
-    : receiverType? DOUBLE_COLON NL* (simpleIdentifier | CLASS);
-
-anonymousObjectLiteral
-    : ANONYMOUS (NL* LARROW NL* delegationSpecifiers)? (NL* classBody)?;
+    : receiverType? DOUBLE_COLON NL* simpleIdentifier;
 
 collectionLiteral
     : LSQUARE NL* expression? (NL* COMMA NL* expression)* NL* RSQUARE;
 
 thisExpression
-    : THIS labelReference?;
+    : THIS;
 
 superExpression
-    : SUPER (LANGLE NL* type NL* RANGLE)? labelReference?;
+    : SUPER;
 
 conditionalExpression
     : ifExpression | matchExpression;
 
 ifExpression
-    : (IF | UNLESS) NL* LPAREN NL* expression NL* RPAREN NL* block (NL* ELSIF NL* LPAREN NL* expression NL* RPAREN NL* block)* (NL* ELSE NL* block)?;
+    : (IF | UNLESS) NL* LPAREN NL* expression NL* RPAREN NL* block (NL* elsifExpression)* (NL* ELSE NL* block)?;
+
+elsifExpression
+    : ELSIF NL* LPAREN NL* expression NL* RPAREN NL* block;
 
 matchExpression
-    : MATCH NL* LPAREN NL* expression NL* RPAREN NL* LCURLY NL* (matchEntry NL*)+ NL* RCURLY;
+    : MATCH NL* LPAREN NL* expression NL* RPAREN NL* LCURLY (NL* matchEntry)+ NL* RCURLY;
 
 matchEntry
     : WHEN NL* literalConstant (NL* COMMA NL* literalConstant)* NL* RARROW_THICK NL* block semi? | ELSE NL* RARROW_THICK NL* block;
@@ -418,7 +407,7 @@ tryExpression
     : TRY NL* block (NL* catchBlock)* (NL* finallyBlock)?;
 
 catchBlock
-    : CATCH NL* LPAREN NL* annotations? simpleIdentifier NL* COLON NL* identifier (NL* CONJ NL* identifier)* NL* RPAREN NL* block;
+    : CATCH NL* LPAREN NL* annotations? simpleIdentifier NL* COLON NL* type (NL* CONJ NL* type)* NL* RPAREN NL* block;
 
 finallyBlock
     : FINALLY NL* block;
@@ -430,19 +419,13 @@ triggerExpression
     : TRIGGER NL* expression;
 
 returnExpression
-    : (RETURN | RETURN_AT) NL* expression?;
+    : RETURN NL* expression?;
 
 continueExpression
-    : CONTINUE | CONTINUE_AT;
+    : CONTINUE;
 
 breakExpression
-    : BREAK | BREAK_AT;
-
-labelDefinition
-    : simpleIdentifier AT NL*;
-
-labelReference
-    : AT simpleIdentifier;
+    : BREAK;
 
 // Literals
 
@@ -514,9 +497,6 @@ multiLineStringContent
 multiLineStringExpression
     : MultiLineStrExprStart expression RCURLY;
 
-functionLiteral
-    : lambdaLiteral | anonymousFunction;
-
 lambdaLiteral
     : LCURLY NL* (lambdaParameters? NL* RARROW_THICK NL*)? statements NL* RCURLY;
 
@@ -524,13 +504,7 @@ lambdaParameters
     : lambdaParameter (NL* COMMA NL* lambdaParameter)*;
 
 lambdaParameter
-    : (variableDeclaration | multiVariableDeclaration) (NL* COLON NL* type)?;
-
-anonymousFunction
-    : FUNCTION
-    NL* functionValueParameters
-    (NL* RARROW NL* type)?
-    (NL* functionBody)?;
+    : variableDeclaration (NL* COLON NL* type)?;
 
 // Operators
 
@@ -550,7 +524,7 @@ identityOperator
     : NL* (IDENTICAL | NIDENTICAL) NL*;
 
 comparisonOperator
-    : NL* (LANGLE | NLANGLE | RANGLE | NRANGLE | LEQ | NLEQ | GEQ | NGEQ | SPACESHIP) NL*;
+    : NL* (LANGLE | NLANGLE | RANGLE | NRANGLE | LEQ | NLEQ | GEQ | NGEQ) NL*;
 
 inOperator
     : NL* (IN | NOT_IN) NL*;
@@ -580,9 +554,6 @@ asOperator
     : NL* (AS | AS_QUEST) NL*;
 
 unaryPrefix
-    : annotation | labelDefinition | prefixUnaryOperator;
-
-prefixUnaryOperator
     : INCR | DECR | ADD | SUB | EXCL | DOUBLE_AT;
 
 unaryPostfix
@@ -609,7 +580,7 @@ lambdaCallSuffix
     : valueArguments? annotatedLambda;
 
 annotatedLambda
-    : annotations? labelDefinition? NL* lambdaLiteral;
+    : annotations? NL* lambdaLiteral;
 
 indexingSuffix
     : LSQUARE NL* expression (NL* COMMA NL* expression)* NL* RSQUARE;
@@ -638,7 +609,7 @@ visibilityModifier
     | PRIVATE;
 
 inheritanceModifier
-    : SAMPLE
+    : ABSTRACT
     | FINAL
     | OPEN
     | COVER;

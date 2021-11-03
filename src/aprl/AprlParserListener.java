@@ -188,16 +188,6 @@ public interface AprlParserListener extends ParseTreeListener {
 	 */
 	void exitDelegationSpecifiers(AprlParser.DelegationSpecifiersContext ctx);
 	/**
-	 * Enter a parse tree produced by {@link AprlParser#annotatedDelegationSpecifier}.
-	 * @param ctx the parse tree
-	 */
-	void enterAnnotatedDelegationSpecifier(AprlParser.AnnotatedDelegationSpecifierContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link AprlParser#annotatedDelegationSpecifier}.
-	 * @param ctx the parse tree
-	 */
-	void exitAnnotatedDelegationSpecifier(AprlParser.AnnotatedDelegationSpecifierContext ctx);
-	/**
 	 * Enter a parse tree produced by {@link AprlParser#delegationSpecifier}.
 	 * @param ctx the parse tree
 	 */
@@ -608,16 +598,6 @@ public interface AprlParserListener extends ParseTreeListener {
 	 */
 	void exitVariableDeclaration(AprlParser.VariableDeclarationContext ctx);
 	/**
-	 * Enter a parse tree produced by {@link AprlParser#multiVariableDeclaration}.
-	 * @param ctx the parse tree
-	 */
-	void enterMultiVariableDeclaration(AprlParser.MultiVariableDeclarationContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link AprlParser#multiVariableDeclaration}.
-	 * @param ctx the parse tree
-	 */
-	void exitMultiVariableDeclaration(AprlParser.MultiVariableDeclarationContext ctx);
-	/**
 	 * Enter a parse tree produced by {@link AprlParser#propertyBody}.
 	 * @param ctx the parse tree
 	 */
@@ -657,16 +637,6 @@ public interface AprlParserListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitFunctionValueParameterWithOptionalType(AprlParser.FunctionValueParameterWithOptionalTypeContext ctx);
-	/**
-	 * Enter a parse tree produced by {@link AprlParser#parameterModifiers}.
-	 * @param ctx the parse tree
-	 */
-	void enterParameterModifiers(AprlParser.ParameterModifiersContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link AprlParser#parameterModifiers}.
-	 * @param ctx the parse tree
-	 */
-	void exitParameterModifiers(AprlParser.ParameterModifiersContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link AprlParser#parameterWithOptionalType}.
 	 * @param ctx the parse tree
@@ -878,16 +848,6 @@ public interface AprlParserListener extends ParseTreeListener {
 	 */
 	void exitComparison(AprlParser.ComparisonContext ctx);
 	/**
-	 * Enter a parse tree produced by {@link AprlParser#callExpression}.
-	 * @param ctx the parse tree
-	 */
-	void enterCallExpression(AprlParser.CallExpressionContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link AprlParser#callExpression}.
-	 * @param ctx the parse tree
-	 */
-	void exitCallExpression(AprlParser.CallExpressionContext ctx);
-	/**
 	 * Enter a parse tree produced by {@link AprlParser#namedInfixExpression}.
 	 * @param ctx the parse tree
 	 */
@@ -897,6 +857,16 @@ public interface AprlParserListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitNamedInfixExpression(AprlParser.NamedInfixExpressionContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link AprlParser#namedInfix}.
+	 * @param ctx the parse tree
+	 */
+	void enterNamedInfix(AprlParser.NamedInfixContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link AprlParser#namedInfix}.
+	 * @param ctx the parse tree
+	 */
+	void exitNamedInfix(AprlParser.NamedInfixContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link AprlParser#elvisExpression}.
 	 * @param ctx the parse tree
@@ -1038,16 +1008,6 @@ public interface AprlParserListener extends ParseTreeListener {
 	 */
 	void exitCallableReference(AprlParser.CallableReferenceContext ctx);
 	/**
-	 * Enter a parse tree produced by {@link AprlParser#anonymousObjectLiteral}.
-	 * @param ctx the parse tree
-	 */
-	void enterAnonymousObjectLiteral(AprlParser.AnonymousObjectLiteralContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link AprlParser#anonymousObjectLiteral}.
-	 * @param ctx the parse tree
-	 */
-	void exitAnonymousObjectLiteral(AprlParser.AnonymousObjectLiteralContext ctx);
-	/**
 	 * Enter a parse tree produced by {@link AprlParser#collectionLiteral}.
 	 * @param ctx the parse tree
 	 */
@@ -1097,6 +1057,16 @@ public interface AprlParserListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitIfExpression(AprlParser.IfExpressionContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link AprlParser#elsifExpression}.
+	 * @param ctx the parse tree
+	 */
+	void enterElsifExpression(AprlParser.ElsifExpressionContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link AprlParser#elsifExpression}.
+	 * @param ctx the parse tree
+	 */
+	void exitElsifExpression(AprlParser.ElsifExpressionContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link AprlParser#matchExpression}.
 	 * @param ctx the parse tree
@@ -1207,26 +1177,6 @@ public interface AprlParserListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitBreakExpression(AprlParser.BreakExpressionContext ctx);
-	/**
-	 * Enter a parse tree produced by {@link AprlParser#labelDefinition}.
-	 * @param ctx the parse tree
-	 */
-	void enterLabelDefinition(AprlParser.LabelDefinitionContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link AprlParser#labelDefinition}.
-	 * @param ctx the parse tree
-	 */
-	void exitLabelDefinition(AprlParser.LabelDefinitionContext ctx);
-	/**
-	 * Enter a parse tree produced by {@link AprlParser#labelReference}.
-	 * @param ctx the parse tree
-	 */
-	void enterLabelReference(AprlParser.LabelReferenceContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link AprlParser#labelReference}.
-	 * @param ctx the parse tree
-	 */
-	void exitLabelReference(AprlParser.LabelReferenceContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link AprlParser#literalConstant}.
 	 * @param ctx the parse tree
@@ -1418,16 +1368,6 @@ public interface AprlParserListener extends ParseTreeListener {
 	 */
 	void exitMultiLineStringExpression(AprlParser.MultiLineStringExpressionContext ctx);
 	/**
-	 * Enter a parse tree produced by {@link AprlParser#functionLiteral}.
-	 * @param ctx the parse tree
-	 */
-	void enterFunctionLiteral(AprlParser.FunctionLiteralContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link AprlParser#functionLiteral}.
-	 * @param ctx the parse tree
-	 */
-	void exitFunctionLiteral(AprlParser.FunctionLiteralContext ctx);
-	/**
 	 * Enter a parse tree produced by {@link AprlParser#lambdaLiteral}.
 	 * @param ctx the parse tree
 	 */
@@ -1457,16 +1397,6 @@ public interface AprlParserListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitLambdaParameter(AprlParser.LambdaParameterContext ctx);
-	/**
-	 * Enter a parse tree produced by {@link AprlParser#anonymousFunction}.
-	 * @param ctx the parse tree
-	 */
-	void enterAnonymousFunction(AprlParser.AnonymousFunctionContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link AprlParser#anonymousFunction}.
-	 * @param ctx the parse tree
-	 */
-	void exitAnonymousFunction(AprlParser.AnonymousFunctionContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link AprlParser#assignmentOperator}.
 	 * @param ctx the parse tree
@@ -1627,16 +1557,6 @@ public interface AprlParserListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitUnaryPrefix(AprlParser.UnaryPrefixContext ctx);
-	/**
-	 * Enter a parse tree produced by {@link AprlParser#prefixUnaryOperator}.
-	 * @param ctx the parse tree
-	 */
-	void enterPrefixUnaryOperator(AprlParser.PrefixUnaryOperatorContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link AprlParser#prefixUnaryOperator}.
-	 * @param ctx the parse tree
-	 */
-	void exitPrefixUnaryOperator(AprlParser.PrefixUnaryOperatorContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link AprlParser#unaryPostfix}.
 	 * @param ctx the parse tree

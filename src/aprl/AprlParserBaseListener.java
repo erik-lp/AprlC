@@ -232,18 +232,6 @@ public class AprlParserBaseListener implements AprlParserListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
-	@Override public void enterAnnotatedDelegationSpecifier(AprlParser.AnnotatedDelegationSpecifierContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void exitAnnotatedDelegationSpecifier(AprlParser.AnnotatedDelegationSpecifierContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
 	@Override public void enterDelegationSpecifier(AprlParser.DelegationSpecifierContext ctx) { }
 	/**
 	 * {@inheritDoc}
@@ -736,18 +724,6 @@ public class AprlParserBaseListener implements AprlParserListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
-	@Override public void enterMultiVariableDeclaration(AprlParser.MultiVariableDeclarationContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void exitMultiVariableDeclaration(AprlParser.MultiVariableDeclarationContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
 	@Override public void enterPropertyBody(AprlParser.PropertyBodyContext ctx) { }
 	/**
 	 * {@inheritDoc}
@@ -791,18 +767,6 @@ public class AprlParserBaseListener implements AprlParserListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitFunctionValueParameterWithOptionalType(AprlParser.FunctionValueParameterWithOptionalTypeContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void enterParameterModifiers(AprlParser.ParameterModifiersContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void exitParameterModifiers(AprlParser.ParameterModifiersContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
@@ -1060,18 +1024,6 @@ public class AprlParserBaseListener implements AprlParserListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
-	@Override public void enterCallExpression(AprlParser.CallExpressionContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void exitCallExpression(AprlParser.CallExpressionContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
 	@Override public void enterNamedInfixExpression(AprlParser.NamedInfixExpressionContext ctx) { }
 	/**
 	 * {@inheritDoc}
@@ -1079,6 +1031,18 @@ public class AprlParserBaseListener implements AprlParserListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitNamedInfixExpression(AprlParser.NamedInfixExpressionContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterNamedInfix(AprlParser.NamedInfixContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitNamedInfix(AprlParser.NamedInfixContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
@@ -1252,18 +1216,6 @@ public class AprlParserBaseListener implements AprlParserListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
-	@Override public void enterAnonymousObjectLiteral(AprlParser.AnonymousObjectLiteralContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void exitAnonymousObjectLiteral(AprlParser.AnonymousObjectLiteralContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
 	@Override public void enterCollectionLiteral(AprlParser.CollectionLiteralContext ctx) { }
 	/**
 	 * {@inheritDoc}
@@ -1319,6 +1271,18 @@ public class AprlParserBaseListener implements AprlParserListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitIfExpression(AprlParser.IfExpressionContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterElsifExpression(AprlParser.ElsifExpressionContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitElsifExpression(AprlParser.ElsifExpressionContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
@@ -1451,30 +1415,6 @@ public class AprlParserBaseListener implements AprlParserListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitBreakExpression(AprlParser.BreakExpressionContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void enterLabelDefinition(AprlParser.LabelDefinitionContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void exitLabelDefinition(AprlParser.LabelDefinitionContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void enterLabelReference(AprlParser.LabelReferenceContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void exitLabelReference(AprlParser.LabelReferenceContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
@@ -1708,18 +1648,6 @@ public class AprlParserBaseListener implements AprlParserListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
-	@Override public void enterFunctionLiteral(AprlParser.FunctionLiteralContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void exitFunctionLiteral(AprlParser.FunctionLiteralContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
 	@Override public void enterLambdaLiteral(AprlParser.LambdaLiteralContext ctx) { }
 	/**
 	 * {@inheritDoc}
@@ -1751,18 +1679,6 @@ public class AprlParserBaseListener implements AprlParserListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitLambdaParameter(AprlParser.LambdaParameterContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void enterAnonymousFunction(AprlParser.AnonymousFunctionContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void exitAnonymousFunction(AprlParser.AnonymousFunctionContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
@@ -1955,18 +1871,6 @@ public class AprlParserBaseListener implements AprlParserListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitUnaryPrefix(AprlParser.UnaryPrefixContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void enterPrefixUnaryOperator(AprlParser.PrefixUnaryOperatorContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void exitPrefixUnaryOperator(AprlParser.PrefixUnaryOperatorContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *

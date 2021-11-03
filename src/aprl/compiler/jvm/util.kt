@@ -1,6 +1,10 @@
 package aprl.compiler.jvm
 
+import aprl.lang.annotation.AnnotationRetention
+
 typealias Annotations = MutableList<Triple<Class<*>, ValueArguments, AnnotationRetention>>
+
+fun Annotations(): Annotations = mutableListOf()
 
 @JvmName("annotationsToJava()")
 fun Annotations.toJava(): String {

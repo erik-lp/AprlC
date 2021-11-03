@@ -119,12 +119,6 @@ public interface AprlParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitDelegationSpecifiers(AprlParser.DelegationSpecifiersContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link AprlParser#annotatedDelegationSpecifier}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitAnnotatedDelegationSpecifier(AprlParser.AnnotatedDelegationSpecifierContext ctx);
-	/**
 	 * Visit a parse tree produced by {@link AprlParser#delegationSpecifier}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -371,12 +365,6 @@ public interface AprlParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitVariableDeclaration(AprlParser.VariableDeclarationContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link AprlParser#multiVariableDeclaration}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitMultiVariableDeclaration(AprlParser.MultiVariableDeclarationContext ctx);
-	/**
 	 * Visit a parse tree produced by {@link AprlParser#propertyBody}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -400,12 +388,6 @@ public interface AprlParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitFunctionValueParameterWithOptionalType(AprlParser.FunctionValueParameterWithOptionalTypeContext ctx);
-	/**
-	 * Visit a parse tree produced by {@link AprlParser#parameterModifiers}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitParameterModifiers(AprlParser.ParameterModifiersContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link AprlParser#parameterWithOptionalType}.
 	 * @param ctx the parse tree
@@ -533,17 +515,17 @@ public interface AprlParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitComparison(AprlParser.ComparisonContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link AprlParser#callExpression}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitCallExpression(AprlParser.CallExpressionContext ctx);
-	/**
 	 * Visit a parse tree produced by {@link AprlParser#namedInfixExpression}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
 	T visitNamedInfixExpression(AprlParser.NamedInfixExpressionContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link AprlParser#namedInfix}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitNamedInfix(AprlParser.NamedInfixContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link AprlParser#elvisExpression}.
 	 * @param ctx the parse tree
@@ -629,12 +611,6 @@ public interface AprlParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitCallableReference(AprlParser.CallableReferenceContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link AprlParser#anonymousObjectLiteral}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitAnonymousObjectLiteral(AprlParser.AnonymousObjectLiteralContext ctx);
-	/**
 	 * Visit a parse tree produced by {@link AprlParser#collectionLiteral}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -664,6 +640,12 @@ public interface AprlParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitIfExpression(AprlParser.IfExpressionContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link AprlParser#elsifExpression}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitElsifExpression(AprlParser.ElsifExpressionContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link AprlParser#matchExpression}.
 	 * @param ctx the parse tree
@@ -730,18 +712,6 @@ public interface AprlParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitBreakExpression(AprlParser.BreakExpressionContext ctx);
-	/**
-	 * Visit a parse tree produced by {@link AprlParser#labelDefinition}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitLabelDefinition(AprlParser.LabelDefinitionContext ctx);
-	/**
-	 * Visit a parse tree produced by {@link AprlParser#labelReference}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitLabelReference(AprlParser.LabelReferenceContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link AprlParser#literalConstant}.
 	 * @param ctx the parse tree
@@ -857,12 +827,6 @@ public interface AprlParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitMultiLineStringExpression(AprlParser.MultiLineStringExpressionContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link AprlParser#functionLiteral}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitFunctionLiteral(AprlParser.FunctionLiteralContext ctx);
-	/**
 	 * Visit a parse tree produced by {@link AprlParser#lambdaLiteral}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -880,12 +844,6 @@ public interface AprlParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitLambdaParameter(AprlParser.LambdaParameterContext ctx);
-	/**
-	 * Visit a parse tree produced by {@link AprlParser#anonymousFunction}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitAnonymousFunction(AprlParser.AnonymousFunctionContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link AprlParser#assignmentOperator}.
 	 * @param ctx the parse tree
@@ -982,12 +940,6 @@ public interface AprlParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitUnaryPrefix(AprlParser.UnaryPrefixContext ctx);
-	/**
-	 * Visit a parse tree produced by {@link AprlParser#prefixUnaryOperator}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitPrefixUnaryOperator(AprlParser.PrefixUnaryOperatorContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link AprlParser#unaryPostfix}.
 	 * @param ctx the parse tree

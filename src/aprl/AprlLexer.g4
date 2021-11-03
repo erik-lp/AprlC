@@ -11,7 +11,6 @@ WS: [\u0020\u0009\u000C] -> skip;
 NL: '\u000A' | '\u000D' '\u000A';
 
 // Keywords
-NAMESPACE: 'namespace';
 USING: 'using';
 ALIAS: 'alias';
 
@@ -46,7 +45,7 @@ CONST: 'const';
 VAR: 'var';
 VAL: 'val';
 
-SAMPLE: 'sample';
+ABSTRACT: 'abstract';
 COVER: 'cover';
 OPEN: 'open';
 FINAL: 'final';
@@ -76,10 +75,6 @@ WHILE: 'while';
 RETURN: 'return';
 BREAK: 'break';
 CONTINUE: 'continue';
-
-RETURN_AT: 'return@' Identifier;
-BREAK_AT: 'break@' Identifier;
-CONTINUE_AT: 'continue@' Identifier;
 
 AS: 'as';
 AS_QUEST: 'as?';
@@ -115,7 +110,7 @@ SUB: '-'; SUB_ASSIGN: '-='; DECR: '--';
 MUL: '*'; MUL_ASSIGN: '*=';
 DIV: '/'; DIV_ASSIGN: '/=';
 MOD: '%'; MOD_ASSIGN: '%=';
-EXP: '^'; EXP_ASSIGN: '^=';
+EXP: '**'; EXP_ASSIGN: '**=';
 CONJ: '&' | '&&'; CONJ_ASSIGN: '&=' | '&&=';
 DISJ: '|' | '||'; DISJ_ASSIGN: '|=' | '||=';
 XOR: '~' | '~~'; XOR_ASSIGN: '~=' | '~~=';
@@ -156,7 +151,6 @@ NGEQ: '!>=';
 LARROW: '<-';
 RARROW: '->';
 RARROW_THICK: '=>';
-SPACESHIP: '<=>';
 
 // Quotes
 SINGLE_QUOTE: '\'';
@@ -196,9 +190,6 @@ BooleanLiteral: TRUE | FALSE;
 TrileanLiteral: BooleanLiteral | NONE;
 
 Identifier: (Letter | '_') (Letter | '_' | DecDigit)* | '`' (~[`])+ '`';
-
-LabelReference: '@' Identifier;
-LabelDefinition: Identifier '@';
 
 FieldIdentifier: '$' Identifier;
 

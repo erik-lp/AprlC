@@ -1,49 +1,12 @@
 package aprl.compiler
 
 import aprl.AprlParser
-import aprl.compiler.jvm.Annotations
-import aprl.compiler.jvm.Modifier
+import aprl.lang.Complex
+import aprl.lang.Trilean
 import org.antlr.v4.runtime.ParserRuleContext
-import java.util.*
-
-fun modifiersFromModifierList(ctx: AprlParser.ModifierListContext): ArrayList<Modifier> {
-    val modifiers = ArrayList<Modifier>()
-    for (modifier in ctx.modifier()) {
-        val visibility = modifier.visibilityModifier()
-        val inheritance = modifier.inheritanceModifier()
-        val parameter = modifier.parameterModifier()
-        val function = modifier.functionModifier()
-        val actualModifier: Modifier = if (visibility != null) {
-            if (visibility.PUBLIC() != null) Modifier.PUBLIC
-            else if (visibility.LOCAL() != null) Modifier.LOCAL
-            else if (visibility.BOUNDED() != null) Modifier.BOUNDED
-            else if (visibility.PRIVATE() != null) Modifier.PRIVATE
-            else throw InternalError("Expected VisibilityModifierContext ($visibility) to be PUBLIC, LOCAL, BOUNDED or PRIVATE")
-        } else if (inheritance != null) {
-            if (inheritance.SAMPLE() != null) Modifier.SAMPLE
-            else if (inheritance.FINAL() != null) Modifier.FINAL
-            else if (inheritance.OPEN() != null) Modifier.OPEN
-            else if (inheritance.COVER() != null) Modifier.COVER
-            else throw InternalError("Expected InheritanceModifierContext ($inheritance) to be SAMPLE, FINAL, OPEN or COVER")
-        } else if (parameter != null) {
-            if (parameter.PARAMS() != null) Modifier.PARAMS
-            else throw InternalError("Expected ParameterModifierContext ($parameter) to be PARAMS")
-        } else if (function != null) {
-            if (function.INLINE() != null) Modifier.INLINE
-            else if (function.SYNC() != null) Modifier.SYNC
-            else if (function.EXTERNAL() != null) Modifier.EXTERNAL
-            else throw InternalError("Expected ")
-        } else {
-            throw InternalError("Expected ModifierContext ($modifier) to have visibilityModifier, inheritanceModifier, parameterModifier or functionModifier")
-        }
-        modifiers.add(actualModifier)
-    }
-    return modifiers
-}
-
-fun annotationsFromModifierList(ctx: AprlParser.ModifierListContext): Annotations {
-    TODO("Not yet implemented")
-}
+import java.lang.NumberFormatException
+import java.math.BigDecimal
+import java.math.BigInteger
 
 @Suppress("DEPRECATION")
 fun loadPackage(string: String): Package? {
@@ -167,16 +130,74 @@ fun <T> Array<T>.allIndexed(predicate: (Int, T) -> Boolean): Boolean {
 
 fun <T, R> List<T>.mapMutable(transform: (T) -> R): MutableList<R> = map(transform).toMutableList()
 
-fun <T, R> Array<out T>.mapMutable(transform: (T) -> R): MutableList<R> = map(transform).toMutableList()
-
 fun <T, R> List<T>.mapIndexedMutable(transform: (Int, T) -> R): MutableList<R> = mapIndexed(transform).toMutableList()
-
-fun <T, R> Array<out T>.mapIndexedMutable(transform: (Int, T) -> R): MutableList<R> = mapIndexed(transform).toMutableList()
 
 fun <T, R> List<T>.flatMapMutable(transform: (T) -> Iterable<R>): MutableList<R> = flatMap(transform).toMutableList()
 
-fun <T, R> Array<out T>.flatMapMutable(transform: (T) -> Iterable<R>): MutableList<R> = flatMap(transform).toMutableList()
-
 fun <T> List<T>.reversedMutable(): MutableList<T> = reversed().toMutableList()
 
-fun <T> Array<out T>.reversedMutable(): MutableList<T> = reversed().toMutableList()
+infix fun <T> List<T>.andMaybe(element: T?) = element?.let { this + it } ?: this
+
+fun String.toTrilean(): Trilean = when(this) {
+    "true" -> Trilean.TRUE
+    "false" -> Trilean.FALSE
+    "none" -> Trilean.NONE
+    else -> throw IllegalArgumentException("The string doesn't represent a boolean value: $this")
+}
+
+fun String.toTrileanOrNull(): Trilean? = when (this) {
+    "true" -> Trilean.TRUE
+    "false" -> Trilean.FALSE
+    "none" -> Trilean.NONE
+    else -> null
+}
+
+@Throws(NumberFormatException::class)
+fun String.decodeWholeNumber(): BigInteger {
+    return if (startsWith("-")) {
+        -removePrefix("-").decodeWholeNumber()
+    } else {
+        drop(2).replace("_", "").let {
+            if (startsWith("0x", true)) {
+                BigInteger(it, 16)
+            } else if (startsWith("0b", true)) {
+                BigInteger(it, 2)
+            } else if (startsWith("0o", true)) {
+                BigInteger(it, 8)
+            } else {
+                BigInteger(this)
+            }
+        }
+    }
+}
+
+fun String.decodeWholeNumberOrNull(): BigInteger? {
+    return tryOrNull { decodeWholeNumber() }
+}
+
+fun String.decodeDecimalNumber(): BigDecimal {
+    TODO("String.decodeDecimalNumber()")
+}
+
+fun String.decodeDecimalNumberOrNull(): BigDecimal? {
+    TODO("String.decodeDecimalNumberOrNull()")
+}
+
+fun String.decodeComplexNumber(): Complex {
+    val (realStr, imaginaryStr) = split("j", ignoreCase = true).run { get(0) to get(1) }
+    val real = if ("." in realStr) realStr.decodeDecimalNumber() else realStr.decodeWholeNumber().toBigDecimal()
+    val imaginary = if ("." in imaginaryStr) imaginaryStr.decodeDecimalNumber() else imaginaryStr.decodeWholeNumber().toBigDecimal()
+    return Complex(real, imaginary)
+}
+
+fun String.decodeComplexNumberOrNull(): Complex? {
+    return tryOrNull { decodeComplexNumber() }
+}
+
+fun <T> tryOrNull(action: () -> T): T? {
+    return try {
+        action()
+    } catch (ex: Throwable) {
+        null
+    }
+}

@@ -2,6 +2,7 @@ package aprl.compiler
 
 import aprl.AprlLexer
 import aprl.AprlParser
+import org.antlr.v4.gui.Trees
 import org.antlr.v4.runtime.CharStreams
 import org.antlr.v4.runtime.CommonTokenStream
 import org.antlr.v4.runtime.tree.ParseTreeWalker
@@ -33,6 +34,7 @@ private fun compile(input: File, targetDir: File?) {
     tokenStream.fill()
     val parser = AprlParser(tokenStream)
     val tree = parser.aprlFile()
+    Trees.inspect(tree, parser)
     val listener = AprlListener(input.path, targetDir)
     ParseTreeWalker().walk(listener, tree)
     listener.compile()
