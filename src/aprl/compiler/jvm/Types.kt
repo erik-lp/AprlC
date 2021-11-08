@@ -2,6 +2,32 @@ package aprl.compiler.jvm
 
 import aprl.AprlParser
 import aprl.compiler.AprlListener
+import aprl.lang.Function0
+import aprl.lang.Function1
+import aprl.lang.Function10
+import aprl.lang.Function11
+import aprl.lang.Function12
+import aprl.lang.Function13
+import aprl.lang.Function14
+import aprl.lang.Function15
+import aprl.lang.Function16
+import aprl.lang.Function17
+import aprl.lang.Function18
+import aprl.lang.Function19
+import aprl.lang.Function2
+import aprl.lang.Function20
+import aprl.lang.Function21
+import aprl.lang.Function22
+import aprl.lang.Function23
+import aprl.lang.Function24
+import aprl.lang.Function25
+import aprl.lang.Function3
+import aprl.lang.Function4
+import aprl.lang.Function5
+import aprl.lang.Function6
+import aprl.lang.Function7
+import aprl.lang.Function8
+import aprl.lang.Function9
 import java.lang.Void
 import java.lang.reflect.Type as JType
 
@@ -18,50 +44,69 @@ abstract class Type(val annotations: Annotations) : Java {
         }
         return sb.toString()
     }
-    
-    fun canonical() = javaType to typeArguments
 }
 
 object Void : Type(mutableListOf()) {
-    override val typeArguments: TypeArgument? = null
     override val javaType: Class<Void> = Void.TYPE
+    override val typeArguments: TypeArgument? = null
 }
 
-class FunctionType(annotations: Annotations, val types: MutableList<Type>, val returnType: Type) : Type(annotations) {
-    override val javaType: Class<*> get() = TODO("")
-    override val typeArguments: TypeArgument? get() {
-        // TODO: FunctionType.typeArguments
-        return null
-    }
+class FunctionType(annotations: Annotations, val types: List<Type>, val returnType: Type) : Type(annotations) {
+    override val javaType: Class<*> get() = when (types.size) {
+        0 -> Function0::class
+        1 -> Function1::class
+        2 -> Function2::class
+        3 -> Function3::class
+        4 -> Function4::class
+        5 -> Function5::class
+        6 -> Function6::class
+        7 -> Function7::class
+        8 -> Function8::class
+        9 -> Function9::class
+        10 -> Function10::class
+        11 -> Function11::class
+        12 -> Function12::class
+        13 -> Function13::class
+        14 -> Function14::class
+        15 -> Function15::class
+        16 -> Function16::class
+        17 -> Function17::class
+        18 -> Function18::class
+        19 -> Function19::class
+        20 -> Function20::class
+        21 -> Function21::class
+        22 -> Function22::class
+        23 -> Function23::class
+        24 -> Function24::class
+        25 -> Function25::class
+        else -> throw InternalError("Lambda literal with more than 25 parameters! This should have been detected and caught earlier!")
+    }.java
+    override val typeArguments: TypeArgument get() = TypeArgument(types.map { TypeProjection(type = it) })
 }
 
-class ArrayType(annotations: Annotations, val type: Type) : Type(annotations) {
+class ArrayType(annotations: Annotations = Annotations(), val type: Type) : Type(annotations) {
     override val javaType: Class<*> get() = TODO("Not yet implemented")
     override val typeArguments: TypeArgument? = null
 }
 
-class NullableType(annotations: Annotations, val type: Type) : Type(annotations) {
+class NullableType(annotations: Annotations = Annotations(), val type: Type) : Type(annotations) {
     override val javaType: Class<*> get() = TODO("Not yet implemented")
     override val typeArguments: TypeArgument? = null
 }
 
-class Identifier(val parent: AprlListener, annotations: Annotations, val identifiers: MutableList<AprlParser.SimpleIdentifierContext>, override val typeArguments: TypeArgument?) : Type(annotations) {
-    override val javaType: Class<*> get() = parent.loadImportedClass(identifiers)
-}
+class ClassType(override val javaType: Class<*>, override val typeArguments: TypeArgument? = null) : Type(Annotations())
 
-class ClassType(override val javaType: Class<*>, override val typeArguments: TypeArgument?) : Type(mutableListOf())
-
-class ReceiverType(val parenthesizedType: Type? = null, val nullableType: NullableType? = null, val identifier: Identifier? = null) {
+class ReceiverType(val parenthesizedType: Type? = null, val nullableType: NullableType? = null, val identifier: ClassType? = null) {
     val type: Type get() = parenthesizedType ?: nullableType ?: identifier ?: throw InternalError("Expected ReceiverType ($this) to have parenthesizedType, nullableType or identifier")
 }
 
-class TypeArgument(val typeProjections: MutableList<TypeProjection>) {
+class TypeArgument(val typeProjections: List<TypeProjection>) {
     fun toJava(): Array<JType> {
         TODO()
     }
 }
 
-class TypeProjection(val annotations: Annotations, val modifiers: MutableList<TypeProjectionModifier>, val type: Type?) {
+class TypeProjection(val annotations: Annotations = Annotations(), val modifiers: MutableSet<TypeProjectionModifier> = mutableSetOf(), val type: Type?) {
     val wildcard = type == null
 }
 

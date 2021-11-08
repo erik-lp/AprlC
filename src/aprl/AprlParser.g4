@@ -236,7 +236,7 @@ setter
     : modifierList? SETTER NL* ((LPAREN NL* functionValueParameterWithOptionalType NL* RPAREN)? (NL* RARROW NL* type)? NL* functionBody)?;
 
 functionValueParameterWithOptionalType
-    : modifierList? parameterWithOptionalType (NL* ASSIGN NL* expression)?;
+    : modifierList? parameterWithOptionalType;
 
 parameterWithOptionalType
     : simpleIdentifier (NL* COLON NL* type)?;
@@ -344,7 +344,7 @@ exponentialExpression
     : asExpression (exponentialOperator asExpression)*;
 
 asExpression
-    : prefixUnaryExpression (asOperator type)*;
+    : prefixUnaryExpression (asOperator type)?;
 
 prefixUnaryExpression
     : unaryPrefix* postfixUnaryExpression;
@@ -354,7 +354,7 @@ postfixUnaryExpression
 
 atomicExpression
     : parenthesizedExpression
-    | simpleIdentifier
+    | identifier
     | literalConstant
     | contextualReference
     | callableReference
@@ -374,7 +374,7 @@ contextualReference
     : PERIOD identifier;
 
 callableReference
-    : receiverType? DOUBLE_COLON NL* simpleIdentifier;
+    : receiverType DOUBLE_COLON NL* simpleIdentifier;
 
 collectionLiteral
     : LSQUARE NL* expression? (NL* COMMA NL* expression)* NL* RSQUARE;
@@ -504,7 +504,7 @@ lambdaParameters
     : lambdaParameter (NL* COMMA NL* lambdaParameter)*;
 
 lambdaParameter
-    : variableDeclaration (NL* COLON NL* type)?;
+    : annotations? simpleIdentifier NL* COLON NL* type;
 
 // Operators
 

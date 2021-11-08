@@ -7,21 +7,45 @@ import aprl.AprlParserBaseListener
 import aprl.compiler.jvm.*
 import aprl.compiler.jvm.Annotation
 import aprl.compiler.jvm.Function
-import aprl.compiler.jvm.Void.typeArguments
+import aprl.lang.*
 import aprl.lang.annotation.AnnotationRetention
 import aprl.lang.annotation.AnnotationTarget
 import aprl.lang.annotation.Retention
 import aprl.lang.annotation.Target
-import sun.reflect.generics.reflectiveObjects.GenericArrayTypeImpl
+import org.antlr.v4.runtime.ParserRuleContext
+import org.antlr.v4.runtime.RuleContext
 import sun.reflect.generics.reflectiveObjects.ParameterizedTypeImpl
 import java.io.File
+import java.lang.Class
+import java.lang.InternalError
+import java.lang.Package
 import java.lang.reflect.*
-import java.math.BigDecimal.valueOf as BigDecimal
-import java.math.BigInteger.valueOf as BigInteger
 import java.util.*
+import kotlin.Array
+import kotlin.Boolean
+import kotlin.Byte
+import kotlin.Double
+import kotlin.Float
+import kotlin.Int
+import kotlin.Long
+import kotlin.Nothing
+import kotlin.Pair
+import kotlin.Short
+import kotlin.String
+import kotlin.Suppress
+import kotlin.TODO
+import kotlin.Throws
+import kotlin.Triple
+import kotlin.also
+import kotlin.apply
+import kotlin.let
+import kotlin.run
+import kotlin.to
 import java.lang.reflect.Constructor as JConstructor
 import java.lang.reflect.Modifier as JModifier
 import java.lang.reflect.Type as JType
+import java.math.BigDecimal.valueOf as BigDecimal
+import java.math.BigInteger.valueOf as BigInteger
 
 class AprlListener(private val fileName: String, targetDir: File?) : AprlParserBaseListener() {
     
@@ -49,17 +73,15 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     private val imports = mutableListOf<Import>()
     
     private val importedMethods get() = imports.filter { it.method != null }.map { it.method!! }
-    private val importedFields get() = imports.filter { it.field != null }.map { it.field!! }
     
     private val topLevelObjects = mutableSetOf<TopLevelObject>()
     
     fun compile() {}
     
     override fun enterNamespaceHeader(ctx: AprlParser.NamespaceHeaderContext) {
-        val pos = ctx.identifier().position
         val namespaceMatchesLocation = namespaceMatchesLocation(ctx)
         if (!namespaceMatchesLocation) {
-            WARN(simpleName, pos, "Namespace does not match file location")
+            WARN(simpleName, ctx.identifier(), "Namespace does not match file location")
         }
         namespace.addAll(ctx.identifier().simpleIdentifier().map { it.text })
         namespace.freeze()
@@ -71,7 +93,7 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
      * For example:
      *
      * - namespace *example*, file *.../example/Example.aprl* → `true`
-     * - namespace *other*, file *.../example/Example.arl* → `false`
+     * - namespace *other*, file *.../example/Example.aprl* → `false`
      * - namespace *test.example*, file *.../test/example/Example.aprl* → `true`
      */
     private fun namespaceMatchesLocation(ctx: AprlParser.NamespaceHeaderContext): Boolean {
@@ -120,8 +142,7 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
                         }
                         parseMultiImport(ctx.identifier(), elementsInBrackets)
                     } else { // redundant brackets (using foo.[a])
-                        val identifierPosition = ctx.subImportIdentifier(0).position
-                        val bracketPosition = identifierPosition.first to identifierPosition.second - 1
+                        val bracketPosition = ctx.subImportIdentifier(0).position - 1
                         WARN(simpleName, bracketPosition, "Redundant brackets")
                         val allIdentifiers = ctx.identifier().simpleIdentifier() + ctx.subImportIdentifier(0).simpleIdentifier()
                         parseSingleImport(allIdentifiers, ctx.subImportIdentifier(0).importAlias())
@@ -134,7 +155,7 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     /**
      * Parses an "all-import" (e.g. using *aprl.`*`*; using *aprl.annotation.AnnotationTarget.`*`*), adding all the resulting imports to the [imports list][imports].
      *
-     * @param[identifier] The identifier on the left-hand side of the all-import
+     * @param[identifier] The identifier on the left side of the all-import
      *
      * @throws Error If a reference can't be resolved
      */
@@ -144,7 +165,7 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
         val clazz = loadCompleteClass(importIdentifier)
         if (pkg != null) {
             if (imports.any { it.pkg == pkg }) {
-                WARN(simpleName, identifier.position, "Redundant import")
+                WARN(simpleName, identifier, "Redundant import")
             }
             imports.add(Import().also { it.pkg = pkg })
         } else if (clazz != null) {
@@ -152,6 +173,18 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
         } else {
             UNRESOLVED_REFERENCE(identifier.simpleIdentifier())
         }
+    }
+    
+    @Throws(Error::class)
+    @Suppress("FunctionName")
+    private fun ERROR(pos: Position, message: String): Nothing {
+        throw Error(simpleName, pos, message)
+    }
+    
+    @Throws(Error::class)
+    @Suppress("FunctionName")
+    private fun ERROR(element: ParserRuleContext, message: String): Nothing {
+        ERROR(element.position, message)
     }
     
     /**
@@ -166,7 +199,7 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     @Suppress("FunctionName")
     private fun UNRESOLVED_REFERENCE(identifiers: List<AprlParser.SimpleIdentifierContext>): Nothing {
         val error = faultyIdentifier(identifiers)
-        throw Error(simpleName, error.position, "Unresolved reference: '${error.text}'")
+        ERROR(error, "Unresolved reference: '${error.text}'")
     }
     
     /**
@@ -213,12 +246,12 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
         val pkg = from.name
         for ((subIdentifier, alias) in elements) {
             val aliasString = alias?.simpleIdentifier()?.text
-            val clazz = loadCompleteClass("$pkg.${subIdentifier.text}") ?: throw Error(simpleName, subIdentifier.position, "Unresolved reference: '${subIdentifier.text}'")
+            val clazz = loadCompleteClass("$pkg.${subIdentifier.text}") ?: ERROR(subIdentifier, "Unresolved reference: '${subIdentifier.text}'")
             if (imports.any { it.clazz == clazz && it.alias == aliasString }) {
-                WARN(simpleName, subIdentifier.position, "Redundant import")
+                WARN(simpleName, subIdentifier, "Redundant import")
             }
             if (clazz.simpleName == aliasString) {
-                WARN(simpleName, alias!!.position, "Redundant import alias")
+                WARN(simpleName, alias!!, "Redundant import alias")
             }
             imports.add(Import().also { it.clazz = clazz; it.alias = aliasString })
         }
@@ -253,24 +286,22 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
         val field = loadField(clazz, identifier.text)
         if (method != null) {
             if (imports.any { it.method == method }) {
-                WARN(simpleName, identifier.position, "Redundant import")
+                WARN(simpleName, identifier, "Redundant import")
             }
             imports.add(Import().also { it.method = method; it.alias = alias?.simpleIdentifier()?.text })
         }
         if (field != null) {
             if (imports.any { it.field?.name == field.name && it.field != field }) {
-                throw Error(simpleName, identifier.position, "Field by name '${field.name}' is already defined in an import")
+                ERROR(identifier, "Field by name '${field.name}' is already defined in an import")
             }
             if (imports.any { it.field == field }) {
-                WARN(simpleName, identifier.position, "Redundant import")
+                WARN(simpleName, identifier, "Redundant import")
             }
             imports.add(Import().also { it.field = field; it.alias = alias?.simpleIdentifier()?.text })
         }
-        if (method == null && field == null) {
-            throw Error(simpleName, identifier.position, "Unresolved reference: '${identifier.text}'")
-        }
+        method ?: field ?: ERROR(identifier, "Unresolved reference: '${identifier.text}'")
         if (identifier.text == alias?.simpleIdentifier()?.text) {
-            WARN(simpleName, alias!!.position, "Redundant import alias")
+            WARN(simpleName, alias!!, "Redundant import alias")
         }
     }
     
@@ -300,19 +331,19 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
         val pkg = loadPackage(importIdentifier)
         val clazz = loadCompleteClass(importIdentifier)
         if (pkg != null) {
-            throw Error(simpleName, identifiers[0].position, "Namespaces cannot be imported")
+            ERROR(identifiers[0], "Namespaces cannot be imported")
         } else if (clazz != null) {
             if (imports.any { it.clazz == clazz && it.alias == alias }) {
-                WARN(simpleName, identifiers[0].position, "Redundant import")
+                WARN(simpleName, identifiers[0], "Redundant import")
             }
             if (clazz.simpleName == alias) {
-                WARN(simpleName, importAlias!!.position, "Redundant import alias")
+                WARN(simpleName, importAlias!!, "Redundant import alias")
             }
             imports.add(Import().also { it.clazz = clazz; it.alias = alias })
         } else {
             val last = identifiers.last()
             val possibleClass = loadCompleteClass(identifiers.dropLast(1).joinToString(".") { it.text })
-                ?: throw Error(simpleName, last.position, "Unresolved reference: '${last.text}'")
+                ?: ERROR(last, "Unresolved reference: '${last.text}'")
             addValidImports(possibleClass, last, importAlias)
         }
     }
@@ -357,8 +388,8 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     
     private fun parseTopLevelClass(ctx: AprlParser.ClassDeclarationContext): Clazz {
         val clazz = Clazz(ctx.simpleIdentifier().text, null)
-        clazz.modifiers.addAll(ctx.modifierList()?.let { modifiersFromModifierList(it, "top level class", Modifier::`class`) } ?: mutableListOf())
-        clazz.annotations.addAll(ctx.modifierList()?.let { annotationsFromModifierList(it, AnnotationTarget.CLASS) } ?: mutableListOf())
+        clazz.modifiers.addAll(ctx.modifierList()?.let { modifiersFromModifierList(it, "top level class", Modifier::`class`).split().first } ?: mutableListOf())
+        clazz.annotations.addAll(ctx.modifierList()?.let { annotationsFromModifierList(it, AnnotationTarget.CLASS) } ?: Annotations())
         clazz.typeParameters.addAll(ctx.typeParameters()?.let { parseTypeParameters(it) } ?: mutableListOf())
         val delegations = ctx.delegationSpecifiers()
         var superConstructorCall: ValueArguments? = null
@@ -367,22 +398,20 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
             for (delegation in delegations.delegationSpecifier()) {
                 val identifier = delegation.identifier()
                 val superClass = loadImportedClass(identifier)
-                val valueArguments = delegation.valueArguments()?.let { parseValueArguments(it) } ?: mutableListOf()
+                val valueArguments = delegation.valueArguments()?.let { parseValueArguments(it) } ?: ValueArguments()
                 if (superClasses.any { it.first == superClass }) {
-                    throw Error(simpleName, identifier.position, "Supertype '${superClass.simpleName}' appears twice")
+                    ERROR(identifier, "Supertype '${superClass.simpleName}' appears twice")
                 }
                 checkClassExtendability(superClass, identifier.position)
                 if (!superClass.isInterface) {
                     if (superClasses.any { !it.first.isInterface }) {
-                        throw Error(simpleName, identifier.position, "Multiple inheritance is not allowed")
+                        ERROR(identifier, "Multiple inheritance is not allowed")
                     }
                     if (delegation.valueArguments() == null) {
-                        throw Error(simpleName,
-                            identifier.simpleIdentifier().last().run { position + text.length },
-                            "This type has a constructor and thus must be initialized here")
+                        ERROR(identifier.simpleIdentifier().last().run { position + text.length }, "This type has a constructor and thus must be initialized here")
                     }
                     if (getValidConstructor(superClass.constructors, valueArguments) == null) {
-                        throw Error(simpleName, delegation.valueArguments().position, "No constructor can be called with the arguments supplied")
+                        ERROR(delegation.valueArguments(), "No constructor can be called with the arguments supplied")
                     }
                     superConstructorCall = valueArguments
                 }
@@ -451,7 +480,7 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     }
     
     private fun parseNestedExtension(ctx: AprlParser.ExtensionDeclarationContext, enclosingClass: ClassMemberOwner): List<Function> {
-        TODO("parseNestedExtension()")
+        return parseTopLevelExtension(ctx).map { Function(it.name, enclosingClass, it.annotations, it.modifiers, it.typeParameters, it.parameters, it.returnType, it.statements) }
     }
     
     private fun parseNestedClass(ctx: AprlParser.ClassDeclarationContext, enclosingClass: ClassMemberOwner): Clazz {
@@ -485,49 +514,57 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     }
     
     private fun parseFunction(ctx: AprlParser.FunctionDeclarationContext, enclosingClass: ClassMemberOwner): Function {
-        val modifiers = ctx.modifierList()?.let { modifiersFromModifierList(it, "function", Modifier::function) } ?: mutableSetOf()
-        val annotations = ctx.modifierList()?.let { annotationsFromModifierList(it, AnnotationTarget.FUNCTION) } ?: mutableListOf()
+        val modifiers = ctx.modifierList()?.let { modifiersFromModifierList(it, "function", Modifier::function) } ?: mutableListOf()
+        val annotations = ctx.modifierList()?.let { annotationsFromModifierList(it, AnnotationTarget.FUNCTION) } ?: Annotations()
         val typeParameters = ctx.typeParameters()?.let { parseTypeParameters(it) } ?: mutableListOf()
         val name = ctx.simpleIdentifier().text
         val valueParameters = parseFunctionParameters(ctx.functionValueParameters())
         if (ctx.functionBody() == null) {
             if (enclosingClass is Interface) {
-                modifiers.add(Modifier.ABSTRACT)
+                modifiers.add(Modifier.ABSTRACT to (-1 to -1))
             } else if (Modifier.ABSTRACT in enclosingClass.modifiers) {
-                if (Modifier.ABSTRACT !in modifiers) {
-                    throw Error(simpleName, ctx.position, "Function '$name' must have a body or be declared abstract")
+                if (Modifier.ABSTRACT !in modifiers.split().first) {
+                    ERROR(ctx, "Function '$name' must have a body or be declared abstract")
                 }
             }
         }
-        val type: Pair<Class<*>, TypeArgument?> = if (ctx.type() == null) {
+        val type: Type = if (ctx.type() == null) {
             if (ctx.functionBody() == null) {
-                if (Modifier.COVER !in modifiers) {
-                    Void.canonical()
+                if (Modifier.COVER !in modifiers.split().first) {
+                    Void
+                } else {
+                    val superClasses = enclosingClass.superClasses
+                    val methods = superClasses.flatMap { loadMethods(it.javaType, name) }.filter { method ->
+                        method.parameters.allIndexed { i, it ->
+                            valueParameters.getOrNull(i)?.run { type.javaType == it.type } == true
+                        }
+                    }
+                    methods.getOrNull(0)?.let { it.genericReturnType.toType() } ?: ERROR(1 to 1, "'$name' overrides nothing")
                 }
-                TODO("try to infer from possible super class, void otherwise")
             } else {
-                evaluateStatement(parseFunctionBody(ctx.functionBody()).last()).canonical()
+                parseFunctionBody(ctx.functionBody()).last().type
             }
         } else {
-            parseType(ctx.type()).canonical()
+            // TODO: check if return type is in bounds of possible super method
+            parseType(ctx.type())
         }
-        val statements = ctx.functionBody()?.let { parseFunctionBody(it) } ?: mutableListOf()
-        return Function(name, enclosingClass, annotations, modifiers, typeParameters, valueParameters, type, statements)
+        val statements = ctx.functionBody()?.let { parseFunctionBody(it) } ?: Statements()
+        return Function(name, enclosingClass, annotations, modifiers.split().first.toMutableSet(), typeParameters, valueParameters, type, statements)
     }
     
     private fun parseProperty(ctx: AprlParser.PropertyDeclarationContext, enclosingClass: ClassMemberOwner): List<OnlyClassMember> {
-        val modifiers = ctx.modifierList()?.let { modifiersFromModifierList(it, "property", Modifier::property) } ?: mutableSetOf()
-        val annotations = ctx.modifierList()?.let { annotationsFromModifierList(it, AnnotationTarget.PROPERTY) } ?: mutableListOf()
+        val modifiers = ctx.modifierList()?.let { modifiersFromModifierList(it, "property", Modifier::property) } ?: mutableListOf()
+        val annotations = ctx.modifierList()?.let { annotationsFromModifierList(it, AnnotationTarget.PROPERTY) } ?: Annotations()
         val expression = ctx.expression()?.let { parseExpression(it) }
         val variableDeclaration = parseVariableDeclaration(ctx.variableDeclaration(), false)
         val name = variableDeclaration.name
-        val type = variableDeclaration.type?.canonical() ?: expression?.let { evaluateExpression(it) } ?: throw Error(simpleName, 1 to 1, "")
+        val type = variableDeclaration.type ?: expression?.type ?: ERROR(1 to 1, "")
         val final = ctx.VAL() != null || ctx.CONST() != null
         val static = ctx.CONST() != null || ctx.DEF() != null
         if (enclosingClass.static && static) {
             WARN(simpleName, ctx.position + ctx.text.length + 1, "Property '$name' is already in a static environment")
         }
-        val field = Property(name, enclosingClass, annotations, modifiers, type, expression, final, enclosingClass.static || static)
+        val field = Property(name, enclosingClass, annotations, modifiers.split().first.toMutableSet(), type, expression, final, enclosingClass.static || static)
         val getter: Getter? = ctx.propertyBody()?.getter()?.let {
             parseGetter(it, field)
         }
@@ -538,15 +575,15 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     }
     
     private fun parseGetter(ctx: AprlParser.GetterContext, property: Property): Getter {
-        val modifiers = ctx.modifierList()?.let { modifiersFromModifierList(it, "getter", Modifier::getterSetter) } ?: mutableSetOf()
-        val annotations = ctx.modifierList()?.let { annotationsFromModifierList(it, AnnotationTarget.GETTER) } ?: mutableListOf()
+        val modifiers = ctx.modifierList()?.let { modifiersFromModifierList(it, "getter", Modifier::getterSetter) } ?: mutableListOf()
+        val annotations = ctx.modifierList()?.let { annotationsFromModifierList(it, AnnotationTarget.GETTER) } ?: Annotations()
         if (ctx.type() != null) {
             if (parseType(ctx.type()) != property.type) {
-                throw Error(simpleName, ctx.type().position, "Getter return type must be equal to the type of the property (${property.type.toJava()})")
+                ERROR(ctx.type(), "Getter return type must be equal to the type of the property (${property.type.toJava()})")
             }
         }
-        val statements = ctx.functionBody()?.let { parseFunctionBody(it) } ?: mutableListOf(defaultGetter(property))
-        return Getter(property, annotations, modifiers, statements)
+        val statements = ctx.functionBody()?.let { parseFunctionBody(it) } ?: Statements(defaultGetter(property))
+        return Getter(property, annotations, modifiers.split().first.toMutableSet(), statements)
     }
     
     private fun defaultGetter(property: Property): Statement {
@@ -554,51 +591,57 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     }
     
     private fun parseSetter(ctx: AprlParser.SetterContext, property: Property): Setter {
-        val modifiers = ctx.modifierList()?.let { modifiersFromModifierList(it, "setter", Modifier::getterSetter) } ?: mutableSetOf()
-        val annotations = ctx.modifierList()?.let { annotationsFromModifierList(it, AnnotationTarget.SETTER) } ?: mutableListOf()
+        val modifiers = ctx.modifierList()?.let { modifiersFromModifierList(it, "setter", Modifier::getterSetter) } ?: mutableListOf()
+        val annotations = ctx.modifierList()?.let { annotationsFromModifierList(it, AnnotationTarget.SETTER) } ?: Annotations()
         if (ctx.type() != null) {
             if (parseType(ctx.type()) != property.type) {
-                throw Error(simpleName, ctx.type().position, "Setter parameter type must be equal to the type of the property. (${property.type.toJava()})")
+                ERROR(ctx.type(), "Setter parameter type must be equal to the type of the property. (${property.type.toJava()})")
             }
         }
-        val statements = ctx.functionBody()?.let { parseFunctionBody(it) } ?: mutableListOf(defaultGetter(property))
-        return Setter(property, annotations, modifiers, statements)
+        val statements = ctx.functionBody()?.let { parseFunctionBody(it) } ?: Statements(defaultGetter(property))
+        return Setter(property, annotations, modifiers.split().first.toMutableSet(), statements)
     }
     
     private fun defaultSetter(property: Property): Statement {
         TODO("defaultSetter")
     }
     
-    private fun evaluateStatement(ctx: Statement): Type {
-        TODO("evaluateStatement()")
-    }
-    
     private fun parseFunctionBody(ctx: AprlParser.FunctionBodyContext): Statements {
         return if (ctx.block() != null) {
             parseBlock(ctx.block())
         } else if (ctx.expression() != null) {
-            mutableListOf(ReturnStatement(parseExpression(ctx.expression())))
+            Statements(ReturnStatement(parseExpression(ctx.expression())))
         } else {
             throw InternalError("Expected FunctionBodyContext ($ctx) to have body or expression")
         }
     }
     
     private fun parseFunctionParameters(ctx: AprlParser.FunctionValueParametersContext): MutableList<MethodParameter> {
-        return ctx.functionValueParameter()?.mapMutable { parseFunctionValueParameter(it) } ?: mutableListOf()
+        val parameters = ctx.functionValueParameter()?.mapMutable { parseFunctionValueParameter(it) } ?: mutableListOf()
+        val checked = mutableListOf<MethodParameter>()
+        for ((i, param) in parameters.withIndex()) {
+            val redeclaration = checked.firstOrNull { it.name == param.name }
+            if (redeclaration != null) {
+                ERROR(ctx.functionValueParameter(i),
+                    "Conflicting declarations: parameter ${param.name}: ${param.type.toJava()}, parameter ${redeclaration.name}: ${redeclaration.type.toJava()}")
+            }
+            checked.add(param)
+        }
+        return parameters
     }
     
     private fun parseFunctionValueParameter(ctx: AprlParser.FunctionValueParameterContext): MethodParameter {
-        val modifiers = ctx.modifierList()?.let { modifiersFromModifierList(it, "parameter") { mod -> mod == Modifier.PARAMS } } ?: mutableSetOf()
-        val annotations = ctx.modifierList()?.let { annotationsFromModifierList(it, AnnotationTarget.VALUE_PARAMETER) } ?: mutableListOf()
+        val modifiers = ctx.modifierList()?.let { modifiersFromModifierList(it, "parameter") { mod -> mod == Modifier.PARAMS } } ?: mutableListOf()
+        val annotations = ctx.modifierList()?.let { annotationsFromModifierList(it, AnnotationTarget.VALUE_PARAMETER) } ?: Annotations()
         val name = ctx.parameter().simpleIdentifier().text
         val type = parseType(ctx.parameter().type())
         val expression = ctx.expression()?.let { parseExpression(it) }
-        return MethodParameter(modifiers, annotations, name, type, expression)
+        return MethodParameter(modifiers.split().first.toMutableSet(), annotations, name, type, expression)
     }
     
     private fun parseNestedInterface(ctx: AprlParser.InterfaceDeclarationContext, enclosingClass: ClassMemberOwner): Interface {
         return parseTopLevelInterface(ctx).run {
-            Interface(name, enclosingClass, annotations, modifiers, typeParameters, superInterfaces, interfaceMembers)
+            Interface(name, enclosingClass, annotations, modifiers, typeParameters, superClasses, interfaceMembers)
         }
     }
     
@@ -615,35 +658,127 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
         return if (ctx.localVariableDeclaration() != null) {
             parseLocalVariableDeclaration(ctx.localVariableDeclaration())
         } else if (ctx.assignment() != null) {
-            mutableListOf(parseAssignment(ctx.assignment()))
+            Statements(parseAssignment(ctx.assignment()))
         } else if (ctx.loopStatement() != null) {
-            mutableListOf(parseLoopStatement(ctx.loopStatement()))
+            Statements(parseLoopStatement(ctx.loopStatement()))
         } else if (ctx.expression() != null) {
-            mutableListOf(parseExpression(ctx.expression()))
+            Statements(parseExpression(ctx.expression()))
         } else {
             throw InternalError("Expected StatementContext ($ctx) to have localVariableDeclaration, assignment, loopStatement or expression")
         }
     }
     
     private fun parseAssignment(ctx: AprlParser.AssignmentContext): Assignment {
-        val assignableExpression = parseAssignableExpression(ctx.assignableExpression())
-        val operator = parseAssignmentOperator(ctx.assignmentOperator())
         val expression = parseExpression(ctx.expression())
-        val to = evaluateAssignableExpression(assignableExpression)
-        val from = evaluateExpression(expression)
-        if (!isInBound(from.first, from.second, to.first, to.second)) {
-            throw Error(simpleName, ctx.expression().position, "Type mismatch: Inferred type is ${from.toJava()} but ${to.toJava()} was expected")
+        val assignableExpression = parseAssignableExpression(ctx.assignableExpression(), expression)
+        val operator = parseAssignmentOperator(ctx.assignmentOperator())
+        val to = assignableExpression.type
+        val from = expression.type
+        if (!isInBound(from, to)) {
+            ERROR(ctx.expression(), "Type mismatch: Inferred type is ${from.toJava()} but ${to.toJava()} was expected")
         }
         return Assignment(assignableExpression, operator, expression)
     }
     
-    private fun parseAssignableExpression(ctx: AprlParser.AssignableExpressionContext): AssignableExpression {
+    private fun parseAssignableExpression(ctx: AprlParser.AssignableExpressionContext, toAssign: Expression?): AssignableExpression {
         if (ctx.parenthesizedAssignableExpression() != null) {
-            return parseAssignableExpression(ctx.parenthesizedAssignableExpression().assignableExpression())
+            return parseAssignableExpression(ctx.parenthesizedAssignableExpression().assignableExpression(), toAssign)
         }
         val expression = parseExpression(ctx.expression())
         val assignableSuffixes = ctx.assignableSuffix().mapMutable { parseAssignableSuffix(it) }
-        return AssignableExpression(expression, assignableSuffixes)
+        val chainedCalls = mutableListOf<Pair<AccessibleObject, Boolean>>()
+        var left = expression.type
+        for ((i, suffix) in assignableSuffixes.withIndex()) {
+            if (i == assignableSuffixes.lastIndex) { // last suffix has to be setter
+                when (suffix) {
+                    is IndexingSuffix -> {
+                        val setOperators = loadMethods(left.javaType, "set") // member 'set' operators
+                        val extensionSetOperators = loadExtensionFunctions(left, "set") // extension 'set' operators
+                        if (setOperators.isEmpty() && extensionSetOperators.isEmpty()) { // neither member nor extension operators found
+                            ERROR(ctx.assignableSuffix(i), "Unresolved reference: operator 'set'")
+                        }
+                        val memberSetOperator = setOperators.firstOrNull { method ->
+                            method.parameters.size == suffix.expressions.size + 1 // parameters in brackets + value
+                                    && suffix.expressions.pair(method.parameters.dropLast(1)).all { isInBound(it.first.type, it.second.parameterizedType) } // bracket parameters match requirements
+                                    && toAssign?.type?.let { isInBound(it, method.parameters.last().parameterizedType) } != false // value to assign matches requirements
+                        }?.let { it to false } // false: not an extension function
+                        val extensionSetOperator = extensionSetOperators.firstOrNull { method ->
+                            method.parameters.size == suffix.expressions.size + 2 // $this + parameters in brackets + value
+                                    && suffix.expressions.pair(method.parameters.dropSurrounding(1)).all { isInBound(it.first.type, it.second.parameterizedType) } // bracket parameters match requirements
+                                    && toAssign?.type?.let { isInBound(it, method.parameters.last().parameterizedType) } != false // value to assign matches requirements
+                        }?.let { it to true } // true: is an extension function
+                        chainedCalls.add(memberSetOperator ?: extensionSetOperator ?: ERROR(ctx.assignableSuffix(i), "No operator can be called with the arguments supplied"))
+                    }
+                    is NavigationSuffix -> {
+                        val field = loadField(left.javaType, suffix.identifier) // member field
+                        val memberMethod = loadMethods(left.javaType, "set${suffix.identifier.replaceFirstChar(Char::uppercase)}").firstOrNull { method ->
+                            method.parameters.size == 1 // property access syntax can only be used with single parameters
+                                    && toAssign?.type?.let { isInBound(it, method.parameters[0].parameterizedType) } != false // value to assign matches requirements
+                        } // member setter
+                        val extensionFunction = loadExtensionFunctions(left, "set${suffix.identifier.replaceFirstChar(Char::uppercase)}").firstOrNull { method ->
+                            method.parameters.size == 2 // $this + single parameter
+                                    && toAssign?.type?.let { isInBound(it, method.parameters[1].parameterizedType) } != false // value to assign matches requirements
+                        } // extension setter
+                        if (memberMethod != null) {
+                            chainedCalls.add(memberMethod to false)
+                        } else if (extensionFunction != null) {
+                            chainedCalls.add(extensionFunction to true)
+                        } else if (field != null) {
+                            if (field.isEnumConstant) { // enum constant
+                                ERROR(ctx.assignableSuffix(i), "'${suffix.identifier}' is an enum constant and cannot be reassigned")
+                            }
+                            if (JModifier.isFinal(field.modifiers)) { // final (val/const)
+                                ERROR(ctx.assignableSuffix(i), "'${suffix.identifier}' is final and cannot be reassigned")
+                            }
+                            chainedCalls.add(field to false)
+                        } else {
+                            ERROR(ctx.assignableSuffix(i), "Unresolved reference: ${suffix.identifier}")
+                        }
+                    }
+                }
+            } else { // not-last suffixes are getters
+                when (suffix) {
+                    is IndexingSuffix -> {
+                        val getOperators = loadMethods(left.javaType, "get") // member 'get' operators
+                        val extensionGetOperators = loadExtensionFunctions(left, "get") // extension 'get' operators
+                        if (getOperators.isEmpty() && extensionGetOperators.isEmpty()) { // neither member nor extension operators found
+                            ERROR(ctx.assignableSuffix(i), "Unresolved reference: operator 'get'")
+                        }
+                        val memberGetOperator = getOperators.firstOrNull { method ->
+                            method.parameters.size == suffix.expressions.size // parameters in brackets
+                                    && suffix.expressions.pair(method.parameters).all { isInBound(it.first.type, it.second.parameterizedType) } // bracket parameters match requirements
+                        }?.let { it to false } // false: not an extension function
+                        val extensionGetOperator = extensionGetOperators.firstOrNull { method ->
+                            method.parameters.size == suffix.expressions.size + 1 // $this + parameters in brackets
+                                    && suffix.expressions.pair(method.parameters.drop(1)).all { isInBound(it.first.type, it.second.parameterizedType) } // bracket parameters match requirements
+                        }?.let { it to true } // true: is an extension function
+                        val actualGetOperator = memberGetOperator ?: extensionGetOperator ?: ERROR(ctx.assignableSuffix(i), "No operator can be called with the arguments supplied")
+                        chainedCalls.add(actualGetOperator)
+                        left = actualGetOperator.first.genericReturnType.toType()
+                    }
+                    is NavigationSuffix -> {
+                        val field = loadField(left.javaType, suffix.identifier)
+                        val method = loadMethod(left.javaType, "get${suffix.identifier.replaceFirstChar(Char::uppercase)}") ?: loadMethod(left.javaType, "is${suffix.identifier.replaceFirstChar(Char::uppercase)}")
+                        val extensionFunction = loadExtensionFunction(left, "get${suffix.identifier.replaceFirstChar(Char::uppercase)}") ?: loadExtensionFunction(left, "is${suffix.identifier.replaceFirstChar(Char::uppercase)}")
+                        if (method != null) {
+                            chainedCalls.add(method to false)
+                            left = method.genericReturnType.toType()
+                        } else if (extensionFunction != null) {
+                            chainedCalls.add(extensionFunction to true)
+                            left = extensionFunction.genericReturnType.toType()
+                        } else if (field != null) {
+                            chainedCalls.add(field to false)
+                        } else {
+                            ERROR(ctx.assignableSuffix(i), "Unresolved reference: ${suffix.identifier}")
+                        }
+                    }
+                }
+            }
+        }
+        val setter = chainedCalls.lastOrNull()
+        val getters = chainedCalls.dropLast(1)
+        val type = setter?.first?.type ?: expression.type
+        return AssignableExpression(expression, getters, setter, type)
     }
     
     private fun parseAssignableSuffix(ctx: AprlParser.AssignableSuffixContext): AssignableSuffix {
@@ -692,7 +827,7 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     }
     
     private fun parseForStatement(ctx: AprlParser.ForStatementContext): ForStatement {
-        val annotations = ctx.annotations()?.let { parseAnnotations(it, AnnotationTarget.LOCAL_VARIABLE) } ?: mutableListOf()
+        val annotations = ctx.annotations()?.let { parseAnnotations(it, AnnotationTarget.LOCAL_VARIABLE) } ?: Annotations()
         val variableDeclaration = ctx.variableDeclaration()?.let { parseVariableDeclaration(it, false) }
         val expression = parseExpression(ctx.expression())
         val statements = parseBlock(ctx.block())
@@ -743,37 +878,85 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     
     private fun parseExpression(ctx: AprlParser.ExpressionContext): Expression {
         val disjunction = parseDisjunction(ctx.disjunction())
-        return Expression(disjunction)
+        return Expression(disjunction, disjunction.type)
     }
     
     private fun parseDisjunction(ctx: AprlParser.DisjunctionContext): Disjunction {
         val conjunction = parseConjunction(ctx.conjunction(0))
         val additionalConjunctions = ctx.conjunction().drop(1).mapMutable { parseConjunction(it) }
-        return Disjunction(conjunction, additionalConjunctions)
+        var type = conjunction.type
+        for ((i, additionalConjunction) in additionalConjunctions.withIndex()) {
+            val memberOrOperators = loadMethods(type.javaType, "or").filter { it.parameters.size == 1 }
+            val extensionOrOperators = loadExtensionFunctions(type, "or").filter { it.parameters.size == 1 }
+            if (memberOrOperators.isEmpty() && extensionOrOperators.isEmpty()) {
+                ERROR(ctx.disjunctionOperator(i), "Unresolved reference: operator 'or'")
+            }
+            val actualOrOperator = memberOrOperators.firstOrNull { isInBound(additionalConjunction.type, it.parameters[0].parameterizedType) }
+                ?: extensionOrOperators.firstOrNull { isInBound(additionalConjunction.type, it.parameters[0].parameterizedType) }
+                ?: ERROR(ctx.disjunctionOperator(i), "No operator can be called with the arguments supplied")
+            type = actualOrOperator.genericReturnType.toType()
+        }
+        return Disjunction(conjunction, additionalConjunctions, type)
     }
     
     private fun parseConjunction(ctx: AprlParser.ConjunctionContext): Conjunction {
         val equalityComparison = parseEqualityComparison(ctx.equalityComparison(0))
         val additionalEqualityComparisons = ctx.equalityComparison().drop(1).mapMutable { parseEqualityComparison(it) }
-        return Conjunction(equalityComparison, additionalEqualityComparisons)
+        var type = equalityComparison.type
+        for ((i, additionalConjunction) in additionalEqualityComparisons.withIndex()) {
+            val memberAndOperators = loadMethods(type.javaType, "and").filter { it.parameters.size == 1 }
+            val extensionAndOperators = loadExtensionFunctions(type, "and").filter { it.parameters.size == 1 }
+            if (memberAndOperators.isEmpty() && extensionAndOperators.isEmpty()) {
+                ERROR(ctx.conjunctionOperator(i), "Unresolved reference: operator 'and'")
+            }
+            val actualAndOperator = memberAndOperators.firstOrNull { isInBound(additionalConjunction.type, it.parameters[0].parameterizedType) }
+                ?: extensionAndOperators.firstOrNull { isInBound(additionalConjunction.type, it.parameters[0].parameterizedType) }
+                ?: ERROR(ctx.conjunctionOperator(i), "No operator can be called with the arguments supplied")
+            type = actualAndOperator.genericReturnType.toType()
+        }
+        return Conjunction(equalityComparison, additionalEqualityComparisons, type)
     }
     
     private fun parseEqualityComparison(ctx: AprlParser.EqualityComparisonContext): EqualityComparison {
         val identityComparison = parseIdentityComparison(ctx.identityComparison(0))
         val additionalIdentityComparisons = ctx.identityComparison().drop(1).mapMutable { parseIdentityComparison(it) }
-        return EqualityComparison(identityComparison, additionalIdentityComparisons)
+        val type = if (additionalIdentityComparisons.isNotEmpty()) {
+            ClassType(Boolean::class.javaPrimitiveType!!)
+        } else {
+            identityComparison.type
+        }
+        return EqualityComparison(identityComparison, additionalIdentityComparisons, type)
     }
     
     private fun parseIdentityComparison(ctx: AprlParser.IdentityComparisonContext): IdentityComparison {
         val comparison = parseComparison(ctx.comparison(0))
         val additionalComparisons = ctx.comparison().drop(1).mapMutable { parseComparison(it) }
-        return IdentityComparison(comparison, additionalComparisons)
+        val type = if (additionalComparisons.isNotEmpty()) {
+            ClassType(Boolean::class.javaPrimitiveType!!)
+        } else {
+            comparison.type
+        }
+        return IdentityComparison(comparison, additionalComparisons, type)
     }
     
     private fun parseComparison(ctx: AprlParser.ComparisonContext): Comparison {
-        val callExpression = parseNamedInfixExpression(ctx.namedInfixExpression(0))
-        val additionalCallExpressions = ctx.namedInfixExpression().drop(1).mapIndexedMutable { i, it -> parseComparisonOperator(ctx.comparisonOperator(i)) to parseNamedInfixExpression(it) }
-        return Comparison(callExpression, additionalCallExpressions)
+        val namedInfixExpression = parseNamedInfixExpression(ctx.namedInfixExpression(0))
+        val additionalNamedInfixExpressions =
+            ctx.namedInfixExpression().drop(1).mapIndexedMutable { i, it -> parseComparisonOperator(ctx.comparisonOperator(i)) to parseNamedInfixExpression(it) }
+        val type = if (additionalNamedInfixExpressions.isNotEmpty()) {
+            val memberComparators = loadMethods(namedInfixExpression.type.javaType, "compareTo").filter { it.parameters.size == 1 }
+            val extensionComparators = loadExtensionFunctions(namedInfixExpression.type, "compareTo").filter { it.parameters.size == 1 }
+            if (memberComparators.isEmpty() && extensionComparators.isEmpty()) {
+                ERROR(ctx.comparisonOperator(0), "Unresolved reference: operator 'compareTo'")
+            }
+            if ((memberComparators + extensionComparators).none { isInBound(namedInfixExpression.type, it.parameters[0].parameterizedType) }) {
+                ERROR(ctx.namedInfixExpression(1), "No operator can be called with the arguments supplied")
+            }
+            ClassType(Boolean::class.javaPrimitiveType!!)
+        } else {
+            namedInfixExpression.type
+        }
+        return Comparison(namedInfixExpression, additionalNamedInfixExpressions, type)
     }
     
     private fun parseComparisonOperator(ctx: AprlParser.ComparisonOperatorContext): Comparison.Operator {
@@ -786,7 +969,7 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
         } else if (ctx.GEQ() != null || ctx.NLEQ() != null) {
             Comparison.Operator.GEQ
         } else {
-            throw InternalError("Expected ComparisonOperatorContext ($ctx) to be LANGLE, NLANGLE, RANGLE, NRANGLE, LEQ, NLEQ, GEQ, NGEQ or SPACESHIP")
+            throw InternalError("Expected ComparisonOperatorContext ($ctx) to be LANGLE, NLANGLE, RANGLE, NRANGLE, LEQ, NLEQ, GEQ or NGEQ")
         }
     }
     
@@ -804,30 +987,34 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     }
     
     private fun parseAnnotatedLambda(ctx: AprlParser.AnnotatedLambdaContext): AnnotatedLambda {
-        val annotations = ctx.annotations()?.let { parseAnnotations(it, AnnotationTarget.EXPRESSION) } ?: mutableListOf()
+        val annotations = ctx.annotations()?.let { parseAnnotations(it, AnnotationTarget.EXPRESSION) } ?: Annotations()
         val lambdaLiteral = parseLambdaLiteral(ctx.lambdaLiteral())
         return AnnotatedLambda(annotations, lambdaLiteral)
     }
     
     private fun parseLambdaLiteral(ctx: AprlParser.LambdaLiteralContext): LambdaLiteral {
-        val parameters = ctx.lambdaParameters()?.lambdaParameter()?.mapMutable { parseLambdaParameter(it) } ?: mutableListOf()
+        if (ctx.lambdaParameters().lambdaParameter().size > 25) {
+            ERROR(ctx.lambdaParameters().lambdaParameter(25), "")
+        }
+        val parameters = ctx.lambdaParameters()?.lambdaParameter()?.map { parseLambdaParameter(it) } ?: emptyList()
         val statements = ctx.statements().statement().flatMapMutable { parseStatement(it) }
         return LambdaLiteral(parameters, statements)
     }
     
     private fun parseLambdaParameter(ctx: AprlParser.LambdaParameterContext): LambdaParameter {
-        val variableDeclaration = ctx.variableDeclaration()?.let { parseVariableDeclaration(it, true) }
-        val type = ctx.type()?.let { parseType(it) }
-        return LambdaParameter(variableDeclaration, type)
+        val annotations = ctx.annotations()?.let { parseAnnotations(it, AnnotationTarget.LOCAL_VARIABLE) } ?: Annotations()
+        val name = ctx.simpleIdentifier().text
+        val type = parseType(ctx.type())
+        return LambdaParameter(annotations, name, type)
     }
     
     private fun parseVariableDeclaration(ctx: AprlParser.VariableDeclarationContext, annotationsAllowed: Boolean): VariableDeclaration {
         val annotations = ctx.annotations()?.let {
             if (!annotationsAllowed) {
-                throw Error(simpleName, it.position, "Annotations are not allowed in this position")
+                ERROR(it, "Annotations are not allowed in this position")
             }
             parseAnnotations(it, AnnotationTarget.LOCAL_VARIABLE)
-        } ?: mutableListOf()
+        } ?: Annotations()
         val name = ctx.simpleIdentifier().text
         val type = ctx.type()?.let { parseType(it) }
         return VariableDeclaration(annotations, name, type)
@@ -835,8 +1022,13 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     
     private fun parseNamedInfixExpression(ctx: AprlParser.NamedInfixExpressionContext): NamedInfixExpression {
         val elvisExpression = parseElvisExpression(ctx.elvisExpression())
-        val namedInfixes = ctx.namedInfix()?.mapMutable { parseNamedInfix(it) } ?: mutableListOf()
-        return NamedInfixExpression(elvisExpression, namedInfixes)
+        val namedInfixes = ctx.namedInfix()?.map { parseNamedInfix(it) } ?: listOf()
+        val type = if (namedInfixes.isNotEmpty()) {
+            ClassType(Boolean::class.javaPrimitiveType!!)
+        } else {
+            elvisExpression.type
+        }
+        return NamedInfixExpression(elvisExpression, namedInfixes, type)
     }
     
     private fun parseNamedInfix(ctx: AprlParser.NamedInfixContext): Pair<NamedInfixExpression.Operator, NamedInfixExpression.ElvisOrType> {
@@ -871,70 +1063,74 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     private fun parseElvisExpression(ctx: AprlParser.ElvisExpressionContext): ElvisExpression {
         val infixFunctionCall = parseInfixFunctionCall(ctx.infixFunctionCall(0))
         val additionalInfixFunctionCalls = ctx.infixFunctionCall().drop(1).mapMutable { parseInfixFunctionCall(it) }
-        return ElvisExpression(infixFunctionCall, additionalInfixFunctionCalls)
+        val type: Type = if (additionalInfixFunctionCalls.isNotEmpty()) {
+            val types = additionalInfixFunctionCalls.mapArray { it.type }
+            lowestCommonSuperClass(infixFunctionCall.type, *types)
+        } else {
+            infixFunctionCall.type
+        }
+        return ElvisExpression(infixFunctionCall, additionalInfixFunctionCalls, type)
     }
     
     private fun parseInfixFunctionCall(ctx: AprlParser.InfixFunctionCallContext): InfixFunctionCall {
         val rangeExpression = parseRangeExpression(ctx.rangeExpression(0))
         val additionalRangeExpressions = ctx.rangeExpression().drop(1)
-        var left = evaluateRangeExpression(rangeExpression)
+        var left = rangeExpression.type
+        val infixFunctionCalls = mutableListOf<Pair<Method, RangeExpression>>()
         additionalRangeExpressions.forEachIndexed { i, it ->
             val identifier = ctx.simpleIdentifier(i)
             val functionName = identifier.text
-            val parameter = evaluateRangeExpression(parseRangeExpression(it))
-            val memberFunction = loadMethod(left.first, functionName)
+            val parameter = parseRangeExpression(it).type
+            val memberFunction = loadMethod(left.javaType, functionName)
             val extensionFunction = loadExtensionFunction(left, functionName)
             left = if (memberFunction != null) {
                 if (memberFunction.parameters.size != 1) {
-                    throw Error(simpleName, it.position, "Method must have exactly one parameter to be infix called")
+                    ERROR(it, "Method must have exactly one parameter to be infix called")
                 }
                 val onlyParameter = memberFunction.parameters[0]
-                if (!isInBound(parameter.first, parameter.second, onlyParameter.type)) {
-                    throw Error(simpleName, it.position, "Type mismatch: Inferred type is ${parameter.toJava()} but ${onlyParameter.type} was expected")
+                if (!isInBound(parameter, onlyParameter.type)) {
+                    ERROR(it, "Type mismatch: Inferred type is ${parameter.toJava()} but ${onlyParameter.type} was expected")
                 }
-                jTypeToType(memberFunction.genericReturnType).canonical()
+                infixFunctionCalls.add(memberFunction to parseRangeExpression(it))
+                memberFunction.genericReturnType.toType()
             } else if (extensionFunction != null) {
                 if (extensionFunction.parameters.size != 2) {
-                    throw Error(simpleName, it.position, "Method must have exactly one parameter to be infix called")
+                    ERROR(it, "Method must have exactly one parameter to be infix called")
                 }
                 val onlyParameter = extensionFunction.parameters[1]
-                if (!isInBound(parameter.first, parameter.second, onlyParameter.type)) {
-                    throw Error(simpleName, it.position, "Type mismatch: Inferred type is ${parameter.toJava()} but ${onlyParameter.type} was expected")
+                if (!isInBound(parameter, onlyParameter.type)) {
+                    ERROR(it, "Type mismatch: Inferred type is ${parameter.toJava()} but ${onlyParameter.type} was expected")
                 }
-                jTypeToType(extensionFunction.genericReturnType).canonical()
+                infixFunctionCalls.add(extensionFunction to parseRangeExpression(it))
+                extensionFunction.genericReturnType.toType()
             } else {
-                throw Error(simpleName, identifier.position, "Unresolved reference: '${identifier.text}'")
+                ERROR(identifier, "Unresolved reference: '${identifier.text}'")
             }
         }
-        return InfixFunctionCall(rangeExpression, additionalRangeExpressions.mapIndexedMutable { i, it -> ctx.simpleIdentifier(i).text to parseRangeExpression(it) })
-    }
-    
-    private fun jTypeToType(type: JType): Type {
-        return when (type) {
-            is Class<*> -> {
-                ClassType(type, null)
-            }
-            is ParameterizedType -> {
-                ClassType(type.toPlainClass(), jTypeArgumentsToTypeArguments(type.actualTypeArguments))
-            }
-            is GenericArrayType -> {
-                return ArrayType(Annotations(), jTypeToType(type.genericComponentType))
-            }
-            else -> {
-                throw InternalError("Didn't expect type $type to be ${type.javaClass.name}")
-            }
+        val type = if (additionalRangeExpressions.isNotEmpty()) {
+            infixFunctionCalls.last().first.genericReturnType.toType()
+        } else {
+            rangeExpression.type
         }
-    }
-    
-    private fun jTypeArgumentsToTypeArguments(typeArguments: Array<out JType>): TypeArgument {
-        TODO("jTypeArgumentsToTypeArguments()")
+        return InfixFunctionCall(rangeExpression, infixFunctionCalls, type)
     }
     
     private fun parseRangeExpression(ctx: AprlParser.RangeExpressionContext): RangeExpression {
         val xorExpression = parseXorExpression(ctx.xorExpression(0))
         val operator = ctx.toOperator()?.let { parseToOperator(it) }
         val to = ctx.xorExpression().getOrNull(1)?.let { parseXorExpression(it) }
-        return RangeExpression(xorExpression, operator, to)
+        val type = if (operator != null) {
+            val clazz = when (operator) {
+                RangeExpression.Operator.TO -> RangeTo::class.java
+                RangeExpression.Operator.DOWNTO -> RangeDownto::class.java
+                RangeExpression.Operator.UNTIL -> RangeUntil::class.java
+            }
+            val typeArgument = mutableListOf(TypeProjection(type = xorExpression.type))
+            ClassType(clazz, TypeArgument(typeArgument))
+        } else {
+            xorExpression.type
+        }
+        return RangeExpression(xorExpression, operator, to, type)
     }
     
     private fun parseToOperator(ctx: AprlParser.ToOperatorContext): RangeExpression.Operator {
@@ -952,14 +1148,16 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     private fun parseXorExpression(ctx: AprlParser.XorExpressionContext): XorExpression {
         val additiveExpression = parseAdditiveExpression(ctx.additiveExpression(0))
         val additionalAdditiveExpressions = ctx.additiveExpression().drop(1).mapMutable { parseAdditiveExpression(it) }
-        return XorExpression(additiveExpression, additionalAdditiveExpressions)
+        val type = additiveExpression.type
+        return XorExpression(additiveExpression, additionalAdditiveExpressions, type)
     }
     
     private fun parseAdditiveExpression(ctx: AprlParser.AdditiveExpressionContext): AdditiveExpression {
         val multiplicativeExpression = parseMultiplicativeExpression(ctx.multiplicativeExpression(0))
         val additionalMultiplicativeExpressions =
             ctx.multiplicativeExpression().drop(1).mapIndexedMutable { i, it -> parseAdditiveOperator(ctx.additiveOperator(i)) to parseMultiplicativeExpression(it) }
-        return AdditiveExpression(multiplicativeExpression, additionalMultiplicativeExpressions)
+        val type = multiplicativeExpression.type
+        return AdditiveExpression(multiplicativeExpression, additionalMultiplicativeExpressions, type)
     }
     
     private fun parseAdditiveOperator(ctx: AprlParser.AdditiveOperatorContext): AdditiveExpression.Operator {
@@ -976,7 +1174,8 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
         val exponentialExpression = parseExponentialExpression(ctx.exponentialExpression(0))
         val additionalExponentialExpressions =
             ctx.exponentialExpression().drop(1).mapIndexedMutable { i, it -> parseMultiplicativeOperator(ctx.multiplicativeOperator(i)) to parseExponentialExpression(it) }
-        return MultiplicativeExpression(exponentialExpression, additionalExponentialExpressions)
+        val type = exponentialExpression.type
+        return MultiplicativeExpression(exponentialExpression, additionalExponentialExpressions, type)
     }
     
     private fun parseMultiplicativeOperator(ctx: AprlParser.MultiplicativeOperatorContext): MultiplicativeExpression.Operator {
@@ -994,13 +1193,21 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     private fun parseExponentialExpression(ctx: AprlParser.ExponentialExpressionContext): ExponentialExpression {
         val asExpression = parseAsExpression(ctx.asExpression(0))
         val additionalAsExpressions = ctx.asExpression().drop(1).mapMutable { parseAsExpression(it) }
-        return ExponentialExpression(asExpression, additionalAsExpressions)
+        val type = asExpression.type
+        return ExponentialExpression(asExpression, additionalAsExpressions, type)
     }
     
     private fun parseAsExpression(ctx: AprlParser.AsExpressionContext): AsExpression {
         val prefixUnaryExpression = parsePrefixUnaryExpression(ctx.prefixUnaryExpression())
-        val typeCasts = ctx.asOperator()?.mapIndexedMutable { i, it -> parseAsOperator(it) to parseType(ctx.type(i)) } ?: mutableListOf()
-        return AsExpression(prefixUnaryExpression, typeCasts)
+        val operator = ctx.asOperator()?.let { parseAsOperator(it) }
+        val type = ctx.type()?.let { parseType(it) }?.let {
+            if (operator == AsExpression.Operator.AS_QUEST) {
+                NullableType(type = it)
+            } else {
+                it
+            }
+        } ?: prefixUnaryExpression.type
+        return AsExpression(prefixUnaryExpression, operator, type)
     }
     
     private fun parseAsOperator(ctx: AprlParser.AsOperatorContext): AsExpression.Operator {
@@ -1016,7 +1223,12 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     private fun parsePrefixUnaryExpression(ctx: AprlParser.PrefixUnaryExpressionContext): PrefixUnaryExpression {
         val unaryPrefixes = ctx.unaryPrefix()?.mapMutable { parseUnaryPrefix(it) } ?: mutableListOf()
         val postfixUnaryExpression = parsePostfixUnaryExpression(ctx.postfixUnaryExpression())
-        return PrefixUnaryExpression(unaryPrefixes, postfixUnaryExpression)
+        val type = if (unaryPrefixes.any { it == UnaryPrefix.DOUBLE_AT }) {
+            ClassType(Int::class.javaPrimitiveType!!)
+        } else {
+            postfixUnaryExpression.type
+        }
+        return PrefixUnaryExpression(unaryPrefixes, postfixUnaryExpression, type)
     }
     
     private fun parseUnaryPrefix(ctx: AprlParser.UnaryPrefixContext): UnaryPrefix {
@@ -1040,7 +1252,8 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     private fun parsePostfixUnaryExpression(ctx: AprlParser.PostfixUnaryExpressionContext): PostfixUnaryExpression {
         val atomicExpression = parseAtomicExpression(ctx.atomicExpression())
         val unaryPostfixes = ctx.unaryPostfix()?.mapMutable { parseUnaryPostfix(it) } ?: mutableListOf()
-        return PostfixUnaryExpression(atomicExpression, unaryPostfixes)
+        val type = atomicExpression.type
+        return PostfixUnaryExpression(atomicExpression, unaryPostfixes, type)
     }
     
     private fun parseUnaryPostfix(ctx: AprlParser.UnaryPostfixContext): UnaryPostfix {
@@ -1066,22 +1279,67 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     
     private fun parseAtomicExpression(ctx: AprlParser.AtomicExpressionContext): AtomicExpression {
         val parenthesizedExpression = ctx.parenthesizedExpression()?.let { parseParenthesizedExpression(it) }
-        val simpleIdentifier = ctx.simpleIdentifier()?.text
-        val literalConstant = ctx.literalConstant()?.let { parseLiteralConstant(it) }
+        val simpleIdentifier = ctx.identifier()?.simpleIdentifier()?.map { it.text }
         val contextualReference = ctx.contextualReference()?.let { parseContextualReference(it) }
+        val literalConstant = ctx.literalConstant()?.let { parseLiteralConstant(it) }
         val callableReference = ctx.callableReference()?.let { parseCallableReference(it) }
         val lambdaLiteral = ctx.lambdaLiteral()?.let { parseLambdaLiteral(it) }
         val collectionLiteral = ctx.collectionLiteral()?.let { parseCollectionLiteral(it) }
-        val thisLiteral = ctx.thisExpression()?.let { ThisLiteral }
-        val superLiteral = ctx.superExpression()?.let { SuperLiteral }
+        val thisLiteral = ctx.thisExpression()?.let { ctx.typeOfThis }
+        val superLiteral = ctx.superExpression()?.let { ctx.typeOfSuper }
         val conditionalExpression = ctx.conditionalExpression()?.let { parseConditionalExpression(it) }
         val optionalTryExpression = ctx.optionalTryExpression()?.let { parseOptionalTryExpression(it) }
         val tryExpression = ctx.tryExpression()?.let { parseTryExpression(it) }
         val jumpExpression = ctx.jumpExpression()?.let { parseJumpExpression(it) }
+        val type: Type = parenthesizedExpression?.type
+            ?: simpleIdentifier?.let { evaluateReference(it) }
+            ?: contextualReference?.let { evaluateReference(it) }
+            ?: literalConstant?.type
+            ?: callableReference?.type
+            ?: lambdaLiteral?.type
+            ?: collectionLiteral?.run { lowestCommonSuperClass(*mapArray { it.type }) }
+            ?: conditionalExpression?.type
+            ?: optionalTryExpression?.type
+            ?: tryExpression?.type
+            ?: jumpExpression?.type
+            ?: thisLiteral?.clazz
+            ?: superLiteral?.superClass
+            ?: throw InternalError("Expected AtomicExpressionContext ($ctx) to have parenthesizedExpression, simpleIdentifier, contextualReference, literalConstant, callableReference, lambdaLiteral, collectionLiteral, thisLiteral, superLiteral, conditionalExpression, optionalTryExpression, tryExpression or jumpExpression")
         return AtomicExpression(
-            parenthesizedExpression, simpleIdentifier, literalConstant, contextualReference, callableReference, lambdaLiteral, collectionLiteral, thisLiteral, superLiteral,
-            conditionalExpression, optionalTryExpression, tryExpression, jumpExpression
+            parenthesizedExpression, simpleIdentifier ?: contextualReference, literalConstant, callableReference, lambdaLiteral, collectionLiteral, thisLiteral, superLiteral,
+            conditionalExpression, optionalTryExpression, tryExpression, jumpExpression, type
         )
+    }
+    
+    private val RuleContext.typeOfThis: ThisLiteral
+        get() {
+            val clazz = firstParentWhere { it is AprlParser.ClassDeclarationContext } as? AprlParser.ClassDeclarationContext
+            val struct = firstParentWhere { it is AprlParser.StructDeclarationContext } as? AprlParser.StructDeclarationContext
+            val enum = firstParentWhere { it is AprlParser.EnumDeclarationContext } as? AprlParser.EnumDeclarationContext
+            val inter = firstParentWhere { it is AprlParser.InterfaceDeclarationContext } as? AprlParser.InterfaceDeclarationContext
+            val annotation = firstParentWhere { it is AprlParser.AnnotationDeclarationContext } as? AprlParser.AnnotationDeclarationContext
+            val document = firstParentWhere { it is AprlParser.DocumentDeclarationContext } as? AprlParser.DocumentDeclarationContext
+            val extension = firstParentWhere { it is AprlParser.ExtensionDeclarationContext } as? AprlParser.ExtensionDeclarationContext
+            // TODO: how the fuck to access a class before it is compiled???
+            val type = if (extension != null) {
+                parseReceiverType(extension.receiverType()).type
+            } /* TODO: else if */ else {
+                throw InternalError("")
+            }
+            return ThisLiteral(type)
+        }
+    
+    private val RuleContext.typeOfSuper: SuperLiteral
+        get() {
+            TODO("RuleContext.typeOfSuper")
+        }
+    
+    private fun RuleContext.firstParentWhere(condition: (RuleContext) -> Boolean): RuleContext? {
+        var parent: RuleContext? = parent
+        while (parent?.let { condition(it) } == false) {
+            parent = parent.parent
+        }
+        return parent
     }
     
     private fun parseParenthesizedExpression(ctx: AprlParser.ParenthesizedExpressionContext): Expression {
@@ -1094,79 +1352,124 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
         val trilean = ctx.trileanLiteral()?.text?.toTrileanOrNull()
         val int = ctx.integerLiteral()?.text?.decodeWholeNumberOrNull()?.let {
             if (it > BigInteger(Int.MAX_VALUE.toLong())) {
-                throw Error(simpleName, ctx.integerLiteral().position, "Int literal too big")
+                ERROR(ctx.integerLiteral(), "Int literal too big")
             } else if (it < BigInteger(Int.MIN_VALUE.toLong())) {
-                throw Error(simpleName, ctx.integerLiteral().position, "Int literal too small")
+                ERROR(ctx.integerLiteral(), "Int literal too small")
             }
             it.toInt()
         }
         val long = ctx.longLiteral()?.text?.removeSuffix("l")?.removeSuffix("L")?.decodeWholeNumberOrNull()?.let {
             if (it > BigInteger(Long.MAX_VALUE)) {
-                throw Error(simpleName, ctx.longLiteral().position, "Long literal too big")
+                ERROR(ctx.longLiteral(), "Long literal too big")
             } else if (it < BigInteger(Long.MIN_VALUE)) {
-                throw Error(simpleName, ctx.longLiteral().position, "Long literal too small")
+                ERROR(ctx.longLiteral(), "Long literal too small")
             }
             it.toLong()
         }
         val short = ctx.shortLiteral()?.text?.removeSuffix("s")?.removeSuffix("S")?.decodeWholeNumberOrNull()?.let {
             if (it > BigInteger(Short.MAX_VALUE.toLong())) {
-                throw Error(simpleName, ctx.shortLiteral().position, "Short literal too big")
+                ERROR(ctx.shortLiteral(), "Short literal too big")
             } else if (it < BigInteger(Short.MIN_VALUE.toLong())) {
-                throw Error(simpleName, ctx.shortLiteral().position, "Short literal too small")
+                ERROR(ctx.shortLiteral(), "Short literal too small")
             }
             it.toShort()
         }
         val byte = ctx.byteLiteral()?.text?.removeSuffix("b")?.removeSuffix("B")?.decodeWholeNumberOrNull()?.let {
             if (it > BigInteger(Byte.MAX_VALUE.toLong())) {
-                throw Error(simpleName, ctx.byteLiteral().position, "Byte literal too big")
+                ERROR(ctx.byteLiteral(), "Byte literal too big")
             } else if (it < BigInteger(Byte.MIN_VALUE.toLong())) {
-                throw Error(simpleName, ctx.byteLiteral().position, "Byte literal too small")
+                ERROR(ctx.byteLiteral(), "Byte literal too small")
             }
             it.toByte()
         }
         val float = ctx.floatLiteral()?.text?.removeSuffix("f")?.removeSuffix("F")?.decodeDecimalNumberOrNull()?.let {
             if (it > BigDecimal(Float.MAX_VALUE.toDouble())) {
-                throw Error(simpleName, ctx.floatLiteral().position, "Float literal too big")
+                ERROR(ctx.floatLiteral(), "Float literal too big")
             } else if (it < BigDecimal(Float.MIN_VALUE.toDouble())) {
-                throw Error(simpleName, ctx.floatLiteral().position, "Float literal too small")
+                ERROR(ctx.floatLiteral(), "Float literal too small")
             }
             it.toFloat()
         }
         val double = ctx.doubleLiteral()?.text?.removeSuffix("d")?.removeSuffix("D")?.decodeDecimalNumberOrNull()?.let {
             if (it > BigDecimal(Float.MAX_VALUE.toDouble())) {
-                throw Error(simpleName, ctx.doubleLiteral().position, "Double literal too big")
+                ERROR(ctx.doubleLiteral(), "Double literal too big")
             } else if (it < BigDecimal(Float.MIN_VALUE.toDouble())) {
-                throw Error(simpleName, ctx.doubleLiteral().position, "Double literal too small")
+                ERROR(ctx.doubleLiteral(), "Double literal too small")
             }
             it.toDouble()
         }
         val complex = ctx.complexLiteral()?.text?.decodeComplexNumberOrNull()?.apply {
             if (getReal() > BigDecimal(Double.MAX_VALUE)) {
-                throw Error(simpleName, ctx.complexLiteral().position, "Complex real part too big")
+                ERROR(ctx.complexLiteral(), "Complex real part too big")
             }
             if (getImaginary() > BigDecimal(Double.MAX_VALUE)) {
-                throw Error(simpleName, ctx.complexLiteral().position + getReal().toString().length + 1, "Complex imaginary part too big")
+                ERROR(ctx.complexLiteral().position + getReal().toString().length + 1, "Complex imaginary part too big")
             }
             if (getReal() < BigDecimal(Double.MIN_VALUE)) {
-                throw Error(simpleName, ctx.complexLiteral().position, "Complex real part too small")
+                ERROR(ctx.complexLiteral(), "Complex real part too small")
             }
             if (getImaginary() < BigDecimal(Double.MIN_VALUE)) {
-                throw Error(simpleName, ctx.complexLiteral().position + getReal().toString().length + 1, "Complex imaginary part too small")
+                ERROR(ctx.complexLiteral().position + getReal().toString().length + 1, "Complex imaginary part too small")
             }
         }
         val character = ctx.characterLiteral()?.text?.get(1)
         val string = ctx.stringLiteral()?.text?.removeSurrounding("\"")
-        return LiteralConstant(`null`, bool, trilean, int, long, short, byte, float, double, complex, character, string)
+        val clazz = `null`?.let { aprl.lang.Nothing::class.java }
+            ?: bool?.let { java.lang.Boolean::class.javaPrimitiveType!! }
+            ?: trilean?.let { Trilean::class.java }
+            ?: int?.let { java.lang.Integer::class.javaPrimitiveType!! }
+            ?: long?.let { java.lang.Long::class.javaPrimitiveType!! }
+            ?: short?.let { java.lang.Short::class.javaPrimitiveType!! }
+            ?: byte?.let { java.lang.Byte::class.javaPrimitiveType!! }
+            ?: float?.let { java.lang.Float::class.javaPrimitiveType!! }
+            ?: double?.let { java.lang.Double::class.javaPrimitiveType!! }
+            ?: complex?.let { Complex::class.java }
+            ?: character?.let { java.lang.Character::class.javaPrimitiveType!! }
+            ?: string?.let { java.lang.String::class.java }
+            ?: throw InternalError("Literal constant should not be empty! (no literal found)")
+        val type = ClassType(clazz)
+        return LiteralConstant(`null`, bool, trilean, int, long, short, byte, float, double, complex, character, string, type)
     }
     
-    private fun parseContextualReference(ctx: AprlParser.ContextualReferenceContext): MutableList<String> {
-        return ctx.identifier().simpleIdentifier().mapMutable { it.text }
+    private fun parseContextualReference(ctx: AprlParser.ContextualReferenceContext): List<String> {
+        val assignment = ctx.firstParentWhere { it is AprlParser.AssignmentContext } as? AprlParser.AssignmentContext
+        val localVariableDeclaration = ctx.firstParentWhere { it is AprlParser.LocalVariableDeclarationContext } as? AprlParser.LocalVariableDeclarationContext
+        val function = ctx.firstParentWhere { it is AprlParser.FunctionBodyContext }?.parent as? AprlParser.FunctionDeclarationContext
+        val getter = ctx.firstParentWhere { it is AprlParser.FunctionBodyContext }?.parent as? AprlParser.GetterContext
+        val valueParameter = ctx.firstParentWhere { it is AprlParser.FunctionValueParameterContext } as? AprlParser.FunctionValueParameterContext
+        val property = ctx.firstParentWhere { it is AprlParser.PropertyDeclarationContext } as? AprlParser.PropertyDeclarationContext
+        val classParameter = ctx.firstParentWhere { it is AprlParser.ClassParameterContext } as? AprlParser.ClassParameterContext
+        val valueArgument = ctx.firstParentWhere { it is AprlParser.ValueArgumentContext } as? AprlParser.ValueArgumentContext
+        val baseClass: Type = if (assignment != null) {
+            parseAssignableExpression(assignment.assignableExpression(), null).type
+        } else if (localVariableDeclaration != null) {
+            localVariableDeclaration.variableDeclaration().type()?.let { parseType(it) } ?: ERROR(ctx, "Contextual reference requires type annotation")
+        } else if (function != null) {
+            function.type()?.let { parseType(it) } ?: ERROR(ctx, "Contextual reference requires type annotation")
+        } else if (getter != null) {
+            getter.type()?.let { parseType(it) } ?: ERROR(ctx, "Contextual reference requires type annotation")
+        } else if (valueParameter != null) {
+            parseType(valueParameter.parameter().type())
+        } else if (property != null) {
+            property.variableDeclaration().type()?.let { parseType(it) } ?: ERROR(ctx, "Contextual reference requires type annotation")
+        } else if (classParameter != null) {
+            parseType(classParameter.type())
+        } else if (valueArgument != null) {
+            TODO("get possible 'parents' (like, 'owners') of valueArgument and infer context from them")
+        } else {
+            ERROR(ctx, "Cannot infer context")
+        }
+        return baseClass.javaType.name.split(".") + ctx.identifier().simpleIdentifier().map { it.text }
     }
     
     private fun parseCallableReference(ctx: AprlParser.CallableReferenceContext): CallableReference {
-        val receiverType = ctx.receiverType()?.let { parseReceiverType(it) }
+        val receiverType = parseReceiverType(ctx.receiverType())
         val identifier = ctx.simpleIdentifier().text
-        return CallableReference(receiverType, identifier)
+        val type = receiverType.type
+        val memberFunction = loadMethod(type.javaType, identifier)
+        val extensionFunction = loadExtensionFunction(type, identifier)
+        val method = memberFunction ?: extensionFunction ?: ERROR(ctx.simpleIdentifier(), "Unresolved reference: $identifier")
+        return CallableReference(method)
     }
     
     private fun parseCollectionLiteral(ctx: AprlParser.CollectionLiteralContext): MutableList<Expression> {
@@ -1189,43 +1492,60 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
         val statements = parseBlock(ctx.block(0))
         val elsifExpressions = ctx.elsifExpression()?.mapMutable { parseElsifExpression(it) } ?: mutableListOf()
         val elseStatements = ctx.block().getOrNull(1)?.let { parseBlock(it) }
-        return IfExpression(unless, condition, statements, elsifExpressions, elseStatements)
+        val type = run {
+            val `if` = statements.last().type
+            val elsifs = elsifExpressions.map { it.statements.last().type }
+            val `else` = elseStatements?.last()?.type
+            lowestCommonSuperClass(elsifs + `if` andMaybe `else`)
+        }
+        return IfExpression(unless, condition, statements, elsifExpressions, elseStatements, type)
     }
     
     private fun parseElsifExpression(ctx: AprlParser.ElsifExpressionContext): ElsifExpression {
         val condition = parseExpression(ctx.expression())
         val statements = parseBlock(ctx.block())
-        return ElsifExpression(condition, statements)
+        val type = statements.last().type
+        return ElsifExpression(condition, statements, type)
     }
     
     private fun parseMatchExpression(ctx: AprlParser.MatchExpressionContext): MatchExpression {
         val expression = parseExpression(ctx.expression())
         val matchEntries = ctx.matchEntry().mapMutable { parseMatchEntry(it) }
-        return MatchExpression(expression, matchEntries)
+        val type = lowestCommonSuperClass(matchEntries.map { it.type })
+        return MatchExpression(expression, matchEntries, type)
     }
     
     private fun parseMatchEntry(ctx: AprlParser.MatchEntryContext): MatchEntry {
         val default = ctx.ELSE() != null
         val literalConstants = ctx.literalConstant()?.mapMutable { parseLiteralConstant(it) } ?: mutableListOf()
         val statements = parseBlock(ctx.block())
-        return MatchEntry(default, literalConstants, statements)
+        val type = statements.last().type
+        return MatchEntry(default, literalConstants, statements, type)
     }
     
     private fun parseOptionalTryExpression(ctx: AprlParser.OptionalTryExpressionContext): OptionalTryExpression {
         val statements = ctx.block()?.let { parseBlock(it) }
         val expression = ctx.expression()?.let { parseExpression(it) }
-        return OptionalTryExpression(statements, expression)
+        val type = NullableType(type = statements?.last()?.type ?: expression?.type
+        ?: throw InternalError("Expected OptionalTryExpressionContext ($ctx) to have statements or expression"))
+        return OptionalTryExpression(statements, expression, type)
     }
     
     private fun parseTryExpression(ctx: AprlParser.TryExpressionContext): TryExpression {
         val statements = parseBlock(ctx.block())
         val catchBlocks = ctx.catchBlock()?.mapMutable { parseCatchBlock(it) } ?: mutableListOf()
         val finallyBlock = ctx.finallyBlock()?.let { parseFinallyBlock(it) }
-        return TryExpression(statements, catchBlocks, finallyBlock)
+        val type = run {
+            val `try` = statements.last().type
+            val catch = catchBlocks.map { it.statements.last().type }
+            val finally = finallyBlock?.statements?.last()?.type
+            lowestCommonSuperClass(catch + `try` andMaybe finally)
+        }
+        return TryExpression(statements, catchBlocks, finallyBlock, type)
     }
     
     private fun parseCatchBlock(ctx: AprlParser.CatchBlockContext): CatchBlock {
-        val annotations = ctx.annotations()?.let { parseAnnotations(it, AnnotationTarget.LOCAL_VARIABLE) } ?: mutableListOf()
+        val annotations = ctx.annotations()?.let { parseAnnotations(it, AnnotationTarget.LOCAL_VARIABLE) } ?: Annotations()
         val name = ctx.simpleIdentifier().text
         val types = ctx.type().mapMutable { parseType(it) }
         val statements = parseBlock(ctx.block())
@@ -1253,6 +1573,9 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     
     private fun parseTriggerExpression(ctx: AprlParser.TriggerExpressionContext): TriggerExpression {
         val expression = parseExpression(ctx.expression())
+        if (!isInBound(expression.type, java.lang.Throwable::class.java)) {
+            ERROR(ctx.expression(), "")
+        }
         return TriggerExpression(expression)
     }
     
@@ -1262,7 +1585,7 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     }
     
     private fun parseLocalVariableDeclaration(ctx: AprlParser.LocalVariableDeclarationContext): MutableList<LocalVariable> {
-        val annotations = ctx.annotations()?.let { parseAnnotations(it, AnnotationTarget.LOCAL_VARIABLE) } ?: mutableListOf()
+        val annotations = ctx.annotations()?.let { parseAnnotations(it, AnnotationTarget.LOCAL_VARIABLE) } ?: Annotations()
         val final = ctx.VAL() != null || ctx.CONST() != null
         return mutableListOf(parseLocalVariable(annotations, final, ctx.variableDeclaration(), ctx.expression()))
     }
@@ -1281,33 +1604,29 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
         final: Boolean,
         variableDeclaration: AprlParser.VariableDeclarationContext,
         expression: Expression?,
-        expressionPosition: Pair<Int, Int>?,
+        expressionPosition: Position?,
     ): LocalVariable {
-        annotations.addAll(variableDeclaration.annotations()?.let { parseAnnotations(it, AnnotationTarget.LOCAL_VARIABLE) } ?: mutableListOf())
-        val type: Pair<Class<*>, TypeArgument?>
+        annotations.addAll(variableDeclaration.annotations()?.let { parseAnnotations(it, AnnotationTarget.LOCAL_VARIABLE) } ?: Annotations())
+        val type: Type
         if (variableDeclaration.type() != null) {
-            type = parseType(variableDeclaration.type()).let { it.javaType to it.typeArguments }
+            type = parseType(variableDeclaration.type())
             if (expression != null) {
                 checkType(expression, expressionPosition!!, type)
             }
         } else {
             if (expression != null) {
-                type = evaluateExpression(expression)
+                type = expression.type
             } else {
-                throw Error(simpleName, variableDeclaration.simpleIdentifier().position, "Variable must either have a type annotation or be initialized")
+                ERROR(variableDeclaration.simpleIdentifier(), "Variable must either have a type annotation or be initialized")
             }
         }
         return LocalVariable(variableDeclaration.simpleIdentifier().text, type, final, expression)
     }
     
-    private fun checkType(expression: AprlParser.ExpressionContext, type: Pair<Class<*>, TypeArgument?>) {
-        checkType(parseExpression(expression), expression.position, type)
-    }
-    
-    private fun checkType(expression: Expression, expressionPosition: Pair<Int, Int>, type: Pair<Class<*>, TypeArgument?>) {
-        evaluateExpression(expression).run {
-            if (!isInBound(first, second, type.first, type.second)) {
-                throw Error(simpleName, expressionPosition, "Type mismatch: inferred type is ${this.toJava()} but ${type.toJava()} was expected")
+    private fun checkType(expression: Expression, expressionPosition: Position, type: Type) {
+        expression.type.let {
+            if (!isInBound(it, type)) {
+                ERROR(expressionPosition, "Type mismatch: inferred type is ${it.toJava()} but ${type.toJava()} was expected")
             }
         }
     }
@@ -1317,7 +1636,7 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     }
     
     private fun parseBlock(ctx: AprlParser.BlockContext): Statements {
-        return ctx.statements().statement()?.flatMapMutable { parseStatement(it) } ?: mutableListOf()
+        return ctx.statements().statement()?.flatMapMutable { parseStatement(it) } ?: Statements()
     }
     
     private fun parsePartnerDeclaration(ctx: AprlParser.PartnerDeclarationContext): MutableList<ClassMember> {
@@ -1331,7 +1650,7 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     }
     
     private fun superCallConstructor(clazz: Clazz, superArguments: ValueArguments): Constructor {
-        return Constructor(clazz, modifiers = mutableSetOf(Modifier.PUBLIC), statements = mutableListOf(SuperCall(superArguments)))
+        return Constructor(clazz, modifiers = mutableSetOf(Modifier.PUBLIC), statements = Statements(SuperCall(superArguments)))
     }
     
     private fun parseConstructor(ctx: AprlParser.PrimaryConstructorContext): Constructor {
@@ -1344,8 +1663,8 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
                 if (valueArguments.size >= constructor.parameters.size - 1) { // at least as many value arguments as the parameters without varargs (varargs can be no argument at all)
                     if (constructor.parameters.dropLast(1).allIndexed { i, it -> isValidValueArgument(it, valueArguments[i]) }) {
                         if (valueArguments.drop(constructor.parameters.size - 1).all {
-                                evaluateExpression(it.value).run {
-                                    isInBound(first, second, constructor.parameters.last().type)
+                                it.value.type.run {
+                                    isInBound(javaType, typeArguments, constructor.parameters.last().type)
                                 }
                             }
                         ) return constructor
@@ -1370,107 +1689,118 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
         return if (parameter.isVarArgs) { // this function should not be called with vararg parameters
             false
         } else {
-            evaluateExpression(valueArgument.value).run {
-                isInBound(first, second, parameter.type)
+            valueArgument.value.type.run {
+                isInBound(javaType, typeArguments, parameter.type)
             }
         }
     }
     
-    private fun evaluateExpression(expression: Expression): Pair<Class<*>, TypeArgument?> {
-        return evaluateDisjunction(expression.disjunction)
-    }
-    
-    private fun evaluateDisjunction(disjunction: Disjunction): Pair<Class<*>, TypeArgument?> {
-        return if (disjunction.additionalConjunctions.isNotEmpty()) {
-            Boolean::class.javaPrimitiveType!! to null
-        } else {
-            evaluateConjunction(disjunction.conjunction)
+    private fun lowestCommonSuperClass(vararg classes: Type): Type {
+        val hierarchies = classes.map { it.javaType.hierarchy }
+        val typeArguments = classes.filter { it.typeArguments != null }.map { it.typeArguments!! }
+        var i = 0
+        while (hierarchies.all { i <= it.lastIndex } && hierarchies.allAt(i).allEqual) {
+            i++
         }
+        return ClassType(hierarchies[0][i])
     }
     
-    private fun evaluateConjunction(conjunction: Conjunction): Pair<Class<*>, TypeArgument?> {
-        return if (conjunction.additionalEqualityComparisons.isNotEmpty()) {
-            Boolean::class.javaPrimitiveType!! to null
-        } else {
-            evaluateEqualityComparison(conjunction.equalityComparison)
+    private val <T> List<T>.allEqual: Boolean
+        get() {
+            return all { it == first() }
         }
-    }
     
-    private fun evaluateEqualityComparison(equalityComparison: EqualityComparison): Pair<Class<*>, TypeArgument?> {
-        return if (equalityComparison.additionalIdentityComparisons.isNotEmpty()) {
-            Boolean::class.javaPrimitiveType!! to null
-        } else {
-            evaluateIdentityComparison(equalityComparison.identityComparison)
-        }
-    }
-    
-    private fun evaluateIdentityComparison(identityComparison: IdentityComparison): Pair<Class<*>, TypeArgument?> {
-        return if (identityComparison.additionalComparisons.isNotEmpty()) {
-            Boolean::class.javaPrimitiveType!! to null
-        } else {
-            evaluateComparison(identityComparison.comparison)
-        }
-    }
-    
-    private fun evaluateComparison(comparison: Comparison): Pair<Class<*>, TypeArgument?> {
-        return if (comparison.additionalNamedInfixExpressions.isNotEmpty()) {
-            Boolean::class.javaPrimitiveType!! to null
-        } else {
-            evaluateNamedInfixExpression(comparison.namedInfixExpression)
-        }
-    }
-    
-    private fun evaluateNamedInfixExpression(namedInfixExpression: NamedInfixExpression): Pair<Class<*>, TypeArgument?> {
-        return if (namedInfixExpression.expressions.isNotEmpty()) {
-            Boolean::class.javaPrimitiveType!! to null
-        } else {
-            evaluateElvisExpression(namedInfixExpression.elvisExpression)
-        }
-    }
-    
-    private fun evaluateElvisExpression(elvisExpression: ElvisExpression): Pair<Class<*>, TypeArgument?> {
-        val infixFunctionType = evaluateInfixFunctionCall(elvisExpression.infixFunctionCall)
-        return if (elvisExpression.additionalInfixFunctionCalls.isNotEmpty()) {
-            val types = elvisExpression.additionalInfixFunctionCalls.map { evaluateInfixFunctionCall(it) }.toTypedArray()
-            lowestCommonSuperClass(infixFunctionType, *types)
-        } else {
-            infixFunctionType
-        }
-    }
-    
-    private fun lowestCommonSuperClass(vararg classes: Pair<Class<*>, TypeArgument?>): Pair<Class<*>, TypeArgument?> {
-        TODO("lowestCommonSuperClass()")
-    }
-    
-    private fun evaluateInfixFunctionCall(infixFunctionCall: InfixFunctionCall): Pair<Class<*>, TypeArgument?> {
-        val rangeExpressionType = evaluateRangeExpression(infixFunctionCall.rangeExpression)
-        return if (infixFunctionCall.additionalRangeExpressions.isNotEmpty()) {
-            var left = rangeExpressionType
-            for ((functionName, param) in infixFunctionCall.additionalRangeExpressions) {
-                val memberFunction = loadMethod(left.first, functionName)
-                val extensionFunction = loadExtensionFunction(left, functionName)
-                // left = memberFunction?.let { it.returnType } ?: extensionFunction?.let { it.returnType } ?: throw TooLateError("Unresolved reference: $functionName")
+    private val <T> Class<T>.hierarchy: List<Class<in T>>
+        get() {
+            val hierarchy = ArrayList<Class<in T>>()
+            var superClass = superclass
+            while (superClass != null) {
+                hierarchy.add(superClass)
+                superClass = superClass.superclass
             }
-            rangeExpressionType // TODO
-        } else {
-            rangeExpressionType
+            return hierarchy.reversed()
+        }
+    
+    private fun <T> List<List<T>>.allAt(index: Int): List<T> {
+        return map { it[index] }
+    }
+    
+    private fun lowestCommonSuperClass(classes: Collection<Type>): Type {
+        return lowestCommonSuperClass(*classes.toTypedArray())
+    }
+    
+    private fun evaluateReference(identifier: List<String>): Type {
+        TODO()
+    }
+    
+    private fun evaluateLambdaLiteral(lambdaLiteral: LambdaLiteral): Type {
+        fun functionInterfaceForParams(params: Int): Class<*> {
+            return when (params) {
+                0 -> Function0::class
+                1 -> Function1::class
+                2 -> Function2::class
+                3 -> Function3::class
+                4 -> Function4::class
+                5 -> Function5::class
+                6 -> Function6::class
+                7 -> Function7::class
+                8 -> Function8::class
+                9 -> Function9::class
+                10 -> Function10::class
+                11 -> Function11::class
+                12 -> Function12::class
+                13 -> Function13::class
+                14 -> Function14::class
+                15 -> Function15::class
+                16 -> Function16::class
+                17 -> Function17::class
+                18 -> Function18::class
+                19 -> Function19::class
+                20 -> Function20::class
+                21 -> Function21::class
+                22 -> Function22::class
+                23 -> Function23::class
+                24 -> Function24::class
+                25 -> Function25::class
+                else -> throw InternalError("Lambda literal with more than 25 parameters! This should have been detected and caught earlier!")
+            }.java
+        }
+        
+        val params = lambdaLiteral.parameters.mapMutable { it.type }
+        val returnType = lambdaLiteral.statements.last().type
+        val typeProjections = (params + returnType).mapMutable { TypeProjection(type = it) }
+        return ClassType(functionInterfaceForParams(params.size), TypeArgument(typeProjections))
+    }
+    
+    private fun evaluateCollectionLiteral(collectionLiteral: List<Expression>): Type {
+        val classes = collectionLiteral.mapArray { it.type }
+        return lowestCommonSuperClass(*collectionLiteral.mapArray { it.type })
+    }
+    
+    private fun evaluateConditionalExpression(conditionalExpression: ConditionalExpression): Type {
+        return when (conditionalExpression) {
+            is IfExpression -> evaluateIfExpression(conditionalExpression)
+            is MatchExpression -> evaluateMatchExpression(conditionalExpression)
+            else -> throw InternalError("Expected ConditionalExpression to be IfExpression or MatchExpression")
         }
     }
     
-    private fun evaluateRangeExpression(rangeExpression: RangeExpression): Pair<Class<*>, TypeArgument?> {
-        TODO("evaluateRangeExpression()")
+    private fun evaluateIfExpression(ifExpression: IfExpression): Type {
+        val `if` = ifExpression.statements.last().type
+        val elsifs = ifExpression.elsifExpressions.map { it.statements.last().type }
+        val `else` = ifExpression.elseStatements?.last()?.type
+        return lowestCommonSuperClass(elsifs + `if` andMaybe `else`)
     }
     
-    private fun evaluateXorExpression(xorExpression: XorExpression): Pair<Class<*>, TypeArgument?> {
-        TODO("evaluateXorExpression()")
+    private fun evaluateMatchExpression(matchExpression: MatchExpression): Type {
+        return lowestCommonSuperClass(matchExpression.matchEntries.map { it.statements.last().type })
     }
     
-    private fun evaluateAdditiveExpression(additiveExpression: AdditiveExpression): Pair<Class<*>, TypeArgument?> {
-        TODO("evaluateAdditiveExpression()")
-    }
-    
-    private fun evaluateAssignableExpression(assignableExpression: AssignableExpression): Pair<Class<*>, TypeArgument?> {
-        TODO("evaluateAssignableExpression()")
+    private fun evaluateTryExpression(tryExpression: TryExpression): Type {
+        val `try` = tryExpression.statements.last().type
+        val catch = tryExpression.catchBlocks.map { it.statements.last().type }
+        val finally = tryExpression.finallyBlock?.statements?.last()?.type
+        return lowestCommonSuperClass(catch + `try` andMaybe finally)
     }
     
     private fun checkTypeArguments(
@@ -1484,26 +1814,26 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
         val req = if (b == 1) "One type argument" else "$b type arguments"
         if (superTypeParameters.isNotEmpty()) {
             if (typeArguments?.typeProjection()?.isNotEmpty() != true) {
-                throw Error(simpleName, lastIdentifier.position + lastIdentifier.text.length, "$req expected for ${clazz.name}")
+                ERROR(lastIdentifier.position + lastIdentifier.text.length, "$req expected for ${clazz.name}")
             }
             if (typeArguments.typeProjection().size != b) {
-                throw Error(simpleName, typeArguments.position, "$req expected for '${clazz.name}'")
+                ERROR(typeArguments, "$req expected for '${clazz.name}'")
             } else {
                 for ((typeProjection, superTypeParameter) in typeArguments.typeProjection().pair(superTypeParameters)) {
                     val varianceModifier = typeProjection.typeProjectionModifierList()?.typeProjectionModifier()?.firstOrNull { it.varianceModifier() != null }
                     if (typeProjection.QUEST() != null) {
                         if (!projectionsAllowed) {
-                            throw Error(simpleName, typeProjection.position, "Projections are not allowed here")
+                            ERROR(typeProjection, "Projections are not allowed here")
                         }
                     } else if (varianceModifier != null) {
                         if (!projectionsAllowed) {
-                            throw Error(simpleName, varianceModifier.position, "Projections are not allowed here")
+                            ERROR(varianceModifier, "Projections are not allowed here")
                         }
                     } else {
                         val type: Type = parseType(typeProjection.type())
                         for (bound in superTypeParameter.bounds) {
                             if (!isInBound(type.javaType, type.typeArguments, bound)) {
-                                throw Error(simpleName, typeProjection.position, "Type argument is not within bounds (expected ${bound.typeName})")
+                                ERROR(typeProjection, "Type argument is not within bounds (expected ${bound.typeName})")
                             }
                         }
                     }
@@ -1511,7 +1841,7 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
             }
         } else {
             if (typeArguments?.typeProjection()?.isNotEmpty() == true) {
-                throw Error(simpleName, typeArguments.position, "No type arguments expected for '${clazz.name}'")
+                ERROR(typeArguments, "No type arguments expected for '${clazz.name}'")
             }
         }
     }
@@ -1526,7 +1856,7 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
                 val condition2 = (typeArguments?.typeProjections ?: emptyList()).run {
                     val sameSize = size == bound.actualTypeArguments.size
                     val matching = allIndexed { i, typeProjection ->
-                        typeProjection.wildcard || isInBound(typeProjection.type!!.javaType, typeProjection.type.typeArguments, bound.actualTypeArguments[i])
+                        typeProjection.wildcard || typeProjection.type!!.let { isInBound(it.javaType, it.typeArguments, bound.actualTypeArguments[i]) }
                     }
                     sameSize && matching
                 }
@@ -1543,26 +1873,22 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
         }
     }
     
+    private fun isInBound(type: Type, bound: JType): Boolean = isInBound(type.javaType, type.typeArguments, bound)
+    
     private fun isInBound(clazz1: Class<*>, typeArguments1: TypeArgument?, clazz2: Class<*>, typeArguments2: TypeArgument?): Boolean {
         val type: JType = if (typeArguments2 != null) ParameterizedTypeImpl.make(clazz2, typeArguments2.toJava(), null) else clazz2
         return isInBound(clazz1, typeArguments1, type)
     }
     
-    private fun JType.toPlainClass(): Class<*> {
-        return when (this) {
-            is Class<*> -> this
-            is ParameterizedType -> this.rawType as Class<*>
-            else -> throw InternalError("Didn't expect $this to be ${this.javaClass.name}")
-        }
-    }
+    private fun isInBound(type: Type, bound: Type): Boolean = isInBound(type.javaType, type.typeArguments, bound.javaType, bound.typeArguments)
     
-    private fun checkClassExtendability(clazz: Class<*>, position: Pair<Int, Int>) {
+    private fun checkClassExtendability(clazz: Class<*>, position: Position) {
         if (clazz.isEnum) {
-            throw Error(simpleName, position, "Cannot inherit from enum '${clazz.name}'")
+            ERROR(position, "Cannot inherit from enum '${clazz.name}'")
         } else if (clazz.isRecord) {
-            throw Error(simpleName, position, "Cannot inherit from document '${clazz.name}'")
+            ERROR(position, "Cannot inherit from document '${clazz.name}'")
         } else if (JModifier.isFinal(clazz.modifiers)) {
-            throw Error(simpleName, position, "'${clazz.name}' is final and cannot be inherited from")
+            ERROR(position, "'${clazz.name}' is final and cannot be inherited from")
         }
         // TODO: are there more class extendability restrictions?
     }
@@ -1571,13 +1897,13 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
         return loadImportedClass(identifier.simpleIdentifier())
     }
     
-    fun loadImportedClass(identifiers: List<AprlParser.SimpleIdentifierContext>): Class<*> {
+    private fun loadImportedClass(identifiers: List<AprlParser.SimpleIdentifierContext>): Class<*> {
         val first = identifiers[0]
         val clazz = loadCompleteClass(identifiers.joinToString(".") { it.text })
         if (clazz != null) {
             return clazz
         }
-        val baseClass = loadImportedClass(first) ?: throw Error(simpleName, first.position, "Unresolved reference: '${first.text}'")
+        val baseClass = loadImportedClass(first) ?: ERROR(first, "Unresolved reference: '${first.text}'")
         val suffix = if (identifiers.size == 1) "" else "." + identifiers.drop(1).joinToString(".") { it.text }
         val completeString = baseClass.name + suffix
         val completeClass = loadCompleteClass(completeString)
@@ -1592,7 +1918,7 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
                     break
                 }
             }
-            throw Error(simpleName, faulty!!.position, "Unresolved reference: '${faulty.text}'")
+            ERROR(faulty!!, "Unresolved reference: '${faulty.text}'")
         }
         return completeClass
     }
@@ -1624,7 +1950,7 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     }
     
     private fun parseValueArgument(ctx: AprlParser.ValueArgumentContext): ValueArgument {
-        val annotations = ctx.annotations()?.let { parseAnnotations(it, AnnotationTarget.EXPRESSION) } ?: mutableListOf()
+        val annotations = ctx.annotations()?.let { parseAnnotations(it, AnnotationTarget.EXPRESSION) } ?: Annotations()
         val expression = parseExpression(ctx.expression())
         return ValueArgument(annotations, expression)
     }
@@ -1648,7 +1974,7 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     }
     
     private fun parseType(type: AprlParser.TypeContext): Type {
-        val annotations = type.annotations()?.let { parseAnnotations(it, AnnotationTarget.TYPE) } ?: mutableListOf()
+        val annotations = type.annotations()?.let { parseAnnotations(it, AnnotationTarget.TYPE) } ?: Annotations()
         val function = type.functionType()
         val paren = type.parenthesizedType()
         val array = type.arrayType()
@@ -1669,7 +1995,7 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
             val baseType = if (identifier1 != null) {
                 val clazz = loadImportedClass(identifier1)
                 checkTypeArguments(clazz, nullable.typeArguments(), true, identifier1.simpleIdentifier().last())
-                Identifier(this, annotations, identifier1.simpleIdentifier().toMutableList(), typeArguments1)
+                ClassType(loadImportedClass(identifier1.simpleIdentifier()), typeArguments1)
             } else if (paren1 != null) {
                 parseType(paren1.type())
             } else if (array1 != null) {
@@ -1681,7 +2007,7 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
         } else if (identifier != null) {
             val clazz = loadImportedClass(identifier)
             checkTypeArguments(clazz, type.typeArguments(), true, identifier.simpleIdentifier().last())
-            Identifier(this, annotations, identifier.simpleIdentifier().toMutableList(), typeArguments)
+            ClassType(loadImportedClass(identifier.simpleIdentifier()), typeArguments)
         } else {
             throw InternalError("Expected TypeContext ($type) to have function-, parenthesized-, array-, nullable- or userType")
         }
@@ -1699,7 +2025,7 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
         val baseType = if (identifier != null) {
             val clazz = loadImportedClass(identifier)
             checkTypeArguments(clazz, ctx.typeArguments(), true, identifier.simpleIdentifier().last())
-            Identifier(this, mutableListOf(), identifier.simpleIdentifier().toMutableList(), typeArguments)
+            ClassType(loadImportedClass(identifier.simpleIdentifier()), typeArguments)
         } else if (paren != null) {
             parseType(paren.type())
         } else if (array != null) {
@@ -1707,11 +2033,11 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
         } else {
             throw InternalError("Expected NullableTypeContext ($ctx) to have user-, parenthesized- or arrayType")
         }
-        return NullableType(mutableListOf(), baseType)
+        return NullableType(type = baseType)
     }
     
-    private fun parseIdentifier(ctx: AprlParser.IdentifierContext): Identifier {
-        return Identifier(this, mutableListOf(), ctx.simpleIdentifier(), null)
+    private fun parseIdentifier(ctx: AprlParser.IdentifierContext): ClassType {
+        return ClassType(loadImportedClass(ctx.simpleIdentifier()), null)
     }
     
     private fun parseFunctionType(annotations: Annotations, ctx: AprlParser.FunctionTypeContext): FunctionType {
@@ -1726,10 +2052,10 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     private fun parseTypeProjection(ctx: AprlParser.TypeProjectionContext): TypeProjection {
         val typeProjectionModifierList = ctx.typeProjectionModifierList()
         val annotations: Annotations
-        val typeProjectionModifiers: MutableList<TypeProjectionModifier>
+        val typeProjectionModifiers: MutableSet<TypeProjectionModifier>
         if (typeProjectionModifierList == null) {
-            annotations = mutableListOf()
-            typeProjectionModifiers = mutableListOf()
+            annotations = Annotations()
+            typeProjectionModifiers = mutableSetOf()
         } else {
             annotations = annotationsFromTypeProjectionModifierList(typeProjectionModifierList)
             typeProjectionModifiers =
@@ -1742,8 +2068,8 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
         return ctx.typeProjectionModifier().filter { it.annotation() != null }.flatMapMutable { parseAnnotation(it.annotation(), AnnotationTarget.TYPE) }
     }
     
-    private fun typeProjectionModifiersFromTypeProjectionModifierList(ctx: AprlParser.TypeProjectionModifierListContext): MutableList<TypeProjectionModifier> {
-        return ctx.typeProjectionModifier().filter { it.varianceModifier() != null }.mapMutable { parseVarianceModifier(it.varianceModifier()) }
+    private fun typeProjectionModifiersFromTypeProjectionModifierList(ctx: AprlParser.TypeProjectionModifierListContext): MutableSet<TypeProjectionModifier> {
+        return ctx.typeProjectionModifier().filter { it.varianceModifier() != null }.map { parseVarianceModifier(it.varianceModifier()) }.toMutableSet()
     }
     
     private fun parseVarianceModifier(ctx: AprlParser.VarianceModifierContext): TypeProjectionModifier {
@@ -1766,7 +2092,7 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
         return if (ctx.LSQUARE() != null) {
             parseMultiAnnotation(ctx.unescapedAnnotation(), requiredTarget)
         } else {
-            mutableListOf(parseSingleAnnotation(ctx.unescapedAnnotation(0), requiredTarget))
+            Annotations(parseSingleAnnotation(ctx.unescapedAnnotation(0), requiredTarget))
         }
     }
     
@@ -1776,21 +2102,21 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     
     private fun parseSingleAnnotation(annotation: AprlParser.UnescapedAnnotationContext, requiredTarget: AnnotationTarget): Triple<Class<*>, ValueArguments, AnnotationRetention> {
         val clazz = loadImportedClass(annotation.identifier())
-        val valueArguments = annotation.valueArguments()?.let { parseValueArguments(it) } ?: mutableListOf()
+        val valueArguments = annotation.valueArguments()?.let { parseValueArguments(it) } ?: ValueArguments()
         val retention = clazz.getAnnotation(Retention::class.java)?.value ?: AnnotationRetention.RUNTIME
         val targets = clazz.getAnnotation(Target::class.java)?.targets ?: AnnotationTarget.values()
         if (requiredTarget !in targets) {
-            throw Error(simpleName, annotation.position, "Annotation '${clazz.name}' is not applicable to target '${requiredTarget.name.replace("_", " ").lowercase()}'")
+            ERROR(annotation, "Annotation '${clazz.name}' is not applicable to target '${requiredTarget.name.replace("_", " ").lowercase()}'")
         }
         if (getValidConstructor(clazz.constructors, valueArguments) == null) {
-            throw Error(simpleName, annotation.valueArguments()?.position ?: annotation.identifier().let { it.position + it.text.length }, "No constructor can be called with the arguments supplied")
+            ERROR(annotation.valueArguments()?.position ?: annotation.identifier().let { it.position + it.text.length }, "No constructor can be called with the arguments supplied")
         }
         return Triple(clazz, valueArguments, retention)
     }
     
     private fun parseTopLevelInterface(ctx: AprlParser.InterfaceDeclarationContext): Interface {
         val modifiers = ctx.modifierList()?.let { modifiersFromModifierList(it, "top level interface", Modifier::`class`) } ?: mutableListOf()
-        val annotations = ctx.modifierList()?.let { annotationsFromModifierList(it, AnnotationTarget.CLASS) } ?: mutableListOf()
+        val annotations = ctx.modifierList()?.let { annotationsFromModifierList(it, AnnotationTarget.CLASS) } ?: Annotations()
         val inter = Interface(ctx.simpleIdentifier().text, null)
         // TODO: parse interface
         return inter
@@ -1798,7 +2124,7 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     
     private fun parseTopLevelAnnotation(ctx: AprlParser.AnnotationDeclarationContext): Annotation {
         val modifiers = ctx.modifierList()?.let { modifiersFromModifierList(it, "top level annotation", Modifier::`class`) } ?: mutableListOf()
-        val annotations = ctx.modifierList()?.let { annotationsFromModifierList(it, AnnotationTarget.ANNOTATION) } ?: mutableListOf()
+        val annotations = ctx.modifierList()?.let { annotationsFromModifierList(it, AnnotationTarget.ANNOTATION) } ?: Annotations()
         val annotation = Annotation(ctx.simpleIdentifier().text, null)
         // TODO: parse annotation class
         return annotation
@@ -1806,7 +2132,7 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     
     private fun parseTopLevelDocument(ctx: AprlParser.DocumentDeclarationContext): Document {
         val modifiers = ctx.modifierList()?.let { modifiersFromModifierList(it, "top level document", Modifier::`class`) } ?: mutableListOf()
-        val annotations = ctx.modifierList()?.let { annotationsFromModifierList(it, AnnotationTarget.CLASS) } ?: mutableListOf()
+        val annotations = ctx.modifierList()?.let { annotationsFromModifierList(it, AnnotationTarget.CLASS) } ?: Annotations()
         val document = Document(ctx.simpleIdentifier().text, null)
         // TODO: parse document class
         return document
@@ -1814,7 +2140,7 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     
     private fun parseTopLevelStruct(ctx: AprlParser.StructDeclarationContext): Struct {
         val modifiers = ctx.modifierList()?.let { modifiersFromModifierList(it, "top level struct", Modifier::`class`) } ?: mutableListOf()
-        val annotations = ctx.modifierList()?.let { annotationsFromModifierList(it, AnnotationTarget.CLASS) } ?: mutableListOf()
+        val annotations = ctx.modifierList()?.let { annotationsFromModifierList(it, AnnotationTarget.CLASS) } ?: Annotations()
         val struct = Struct(ctx.simpleIdentifier().text, null)
         // TODO: parse struct
         return struct
@@ -1822,36 +2148,34 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
     
     private fun parseTopLevelEnum(ctx: AprlParser.EnumDeclarationContext): aprl.compiler.jvm.Enum {
         val modifiers = ctx.modifierList()?.let { modifiersFromModifierList(it, "top level enum", Modifier::enum) } ?: mutableListOf()
-        val annotations = ctx.modifierList()?.let { annotationsFromModifierList(it, AnnotationTarget.CLASS) } ?: mutableListOf()
+        val annotations = ctx.modifierList()?.let { annotationsFromModifierList(it, AnnotationTarget.CLASS) } ?: Annotations()
         val enum = Enum(ctx.simpleIdentifier().text, null)
         // TODO: parse enum
         return enum
     }
     
-    private fun parseTopLevelExtension(ctx: AprlParser.ExtensionDeclarationContext): List<ClassMember> {
+    private fun parseTopLevelExtension(ctx: AprlParser.ExtensionDeclarationContext): List<Function> {
         enclosingClassRequired = ctx.extensionBody() != null && ctx.extensionBody().extensionMember().size != 0
         return ctx.extensionBody()?.extensionMember()?.flatMapMutable { parseExtensionMember(it, parseReceiverType(ctx.receiverType()), ctx) } ?: mutableListOf()
     }
     
-    private fun parseExtensionMember(ctx: AprlParser.ExtensionMemberContext, receiverType: ReceiverType, parent: AprlParser.ExtensionDeclarationContext): List<ClassMember> {
+    private fun parseExtensionMember(ctx: AprlParser.ExtensionMemberContext, receiverType: ReceiverType, parent: AprlParser.ExtensionDeclarationContext): List<Function> {
         return listOf(parseExtensionFunction(ctx.functionDeclaration(), receiverType, parent))
     }
     
     private fun parseExtensionFunction(ctx: AprlParser.FunctionDeclarationContext, receiverType: ReceiverType, parent: AprlParser.ExtensionDeclarationContext): Function {
         val param1 = MethodParameter(name = "\$this", type = receiverType.type)
         val name = ctx.simpleIdentifier().text
-        val annotations = ctx.modifierList()?.let { annotationsFromModifierList(it, AnnotationTarget.FUNCTION) } ?: mutableListOf()
-        val modifiers = ctx.modifierList()?.let { modifiersFromModifierList(it, "extension function", Modifier::function) } ?: mutableSetOf()
+        val annotations = ctx.modifierList()?.let { annotationsFromModifierList(it, AnnotationTarget.FUNCTION) } ?: Annotations()
+        val modifiers = ctx.modifierList()?.let { modifiersFromModifierList(it, "extension function", Modifier::function) } ?: mutableListOf()
         val typeParameters = ctx.typeParameters()?.let { parseTypeParameters(it) } ?: mutableListOf()
         parent.typeParameters()?.let { parseTypeParameters(it) }?.also { typeParameters.addAll(0, it) }
         val parameters = parseFunctionParameters(ctx.functionValueParameters()).apply { add(0, param1) }
-        val returnType = ctx.type()?.let { parseType(it) }?.canonical() ?: throw Error(simpleName,
-            ctx.functionValueParameters().let { it.position + it.text.length },
+        val returnType = ctx.type()?.let { parseType(it) } ?: ERROR(ctx.functionValueParameters().run<ParserRuleContext, Position> { position + text.length },
             "Extension function $name() must have explicit return type")
-        val statements = ctx.functionBody()?.let { parseFunctionBody(it) } ?: throw Error(simpleName,
-            ctx.functionValueParameters().let { it.position + it.text.length },
+        val statements = ctx.functionBody()?.let { parseFunctionBody(it) } ?: ERROR(ctx.functionValueParameters().run<ParserRuleContext, Position> { position + text.length },
             "Extension function $name() must have a body")
-        return Function(name, enclosingClass, annotations, modifiers, typeParameters, parameters, returnType, statements)
+        return Function(name, enclosingClass, annotations, modifiers.split().first.toMutableSet(), typeParameters, parameters, returnType, statements)
     }
     
     private fun parseReceiverType(ctx: AprlParser.ReceiverTypeContext): ReceiverType {
@@ -1880,8 +2204,8 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
         ctx: AprlParser.ModifierListContext,
         target: String,
         condition: (Modifier) -> Boolean,
-    ): MutableSet<Modifier> {
-        val modifiers = HashSet<Modifier>()
+    ): MutableList<Pair<Modifier, Position>> {
+        val modifiers = mutableListOf<Pair<Modifier, Position>>()
         for (modifier in ctx.modifier()) {
             val visibility = modifier.visibilityModifier()
             val inheritance = modifier.inheritanceModifier()
@@ -1909,22 +2233,38 @@ class AprlListener(private val fileName: String, targetDir: File?) : AprlParserB
                 else throw InternalError("Expected FunctionModifierContext ($function) to be INLINE, SYNC or EXTERNAL")
             } ?: throw InternalError("Expected ModifierContext ($modifier) to have visibility-, inheritance-, parameter- or functionModifier")
             if (!condition(actualModifier)) {
-                throw Error(simpleName, modifier.position, "Modifier '$actualModifier' is not applicable to '$target'")
+                ERROR(modifier, "Modifier '$actualModifier' is not applicable to '$target'")
             }
-            modifiers.add(actualModifier)
+            modifiers.add(actualModifier to modifier.position)
         }
+        checkIncompatibleModifiers(modifiers.split().first, ctx.modifier())
         return modifiers
     }
     
-    private fun annotationsFromModifierList(ctx: AprlParser.ModifierListContext, requiredTarget: AnnotationTarget): Annotations {
-        return ctx.annotations()?.flatMapMutable { parseAnnotations(it, requiredTarget) } ?: mutableListOf()
+    private fun checkIncompatibleModifiers(modifiers: List<Modifier>, ctx: List<AprlParser.ModifierContext>) {
+        for ((modifier, modifierContext) in modifiers.pair(ctx)) {
+            modifiers.firstOrNull { it == modifier }?.let { ERROR(modifierContext, "Repeated '$modifier'") }
+            modifiers.firstOrNull { !it.compatibleWith(modifier) }?.let { ERROR(modifierContext, "Modifier '$modifier' is incompatible with '$it'") }
+        }
     }
     
-    private fun loadExtensionFunction(type: Pair<Class<*>, TypeArgument?>, functionName: String): Method? {
+    private fun annotationsFromModifierList(ctx: AprlParser.ModifierListContext, requiredTarget: AnnotationTarget): Annotations {
+        return ctx.annotations()?.flatMapMutable { parseAnnotations(it, requiredTarget) } ?: Annotations()
+    }
+    
+    private fun loadExtensionFunction(type: Type, functionName: String): Method? {
         return importedMethods.firstOrNull { method ->
             method.name == functionName
-                && method.parameters[0].let { it.name == "\$this" && isInBound(type.first, type.second, it.type) }
-                && method.modifiers.let { JModifier.isFinal(it) && JModifier.isStatic(it) }
+                    && method.parameters[0].let { it.name == "\$this" && isInBound(type, it.type) }
+                    && method.modifiers.let { JModifier.isFinal(it) && JModifier.isStatic(it) }
+        }
+    }
+    
+    private fun loadExtensionFunctions(type: Type, functionName: String): List<Method> {
+        return importedMethods.filter { method ->
+            method.name == functionName
+                    && method.parameters[0].let { it.name == "\$this" && isInBound(type, it.type) }
+                    && method.modifiers.let { JModifier.isFinal(it) && JModifier.isStatic(it) }
         }
     }
     

@@ -1,10 +1,14 @@
 package aprl.compiler
 
 import aprl.AprlParser
+import aprl.compiler.jvm.*
 import aprl.lang.Complex
 import aprl.lang.Trilean
 import org.antlr.v4.runtime.ParserRuleContext
 import java.lang.NumberFormatException
+import java.lang.reflect.*
+import java.lang.reflect.Constructor
+import java.lang.reflect.Type as JType
 import java.math.BigDecimal
 import java.math.BigInteger
 
@@ -55,10 +59,11 @@ fun faultyIdentifier(identifiers: List<AprlParser.SimpleIdentifierContext>): Apr
     return identifiers.getOrNull(lastValidIndex + 1) ?: throw InternalError("faultyIdentifier() was called despite no faulty identifiers")
 }
 
-val ParserRuleContext.position: Pair<Int, Int>
-    get() = Pair(start.line, start.charPositionInLine + 1)
+val ParserRuleContext.position: Position get() = start.line to start.charPositionInLine + 1
 
-operator fun Pair<Int, Int>.plus(b: Int) = Pair(first, second + b)
+operator fun Position.plus(b: Int): Position = first to second + b
+
+operator fun Position.minus(b: Int): Position = first to second - b
 
 inline fun <reified T> List<T>.asArray(): Array<T> = Array(this.size) {
     this[it]
@@ -128,15 +133,23 @@ fun <T> Array<T>.allIndexed(predicate: (Int, T) -> Boolean): Boolean {
     return true
 }
 
-fun <T, R> List<T>.mapMutable(transform: (T) -> R): MutableList<R> = map(transform).toMutableList()
+inline fun <T, R> Collection<T>.mapMutable(transform: (T) -> R): MutableList<R> = map(transform).toMutableList()
 
-fun <T, R> List<T>.mapIndexedMutable(transform: (Int, T) -> R): MutableList<R> = mapIndexed(transform).toMutableList()
+inline fun <T, R> Collection<T>.mapSet(transform: (T) -> R): Set<R> = map(transform).toSet()
 
-fun <T, R> List<T>.flatMapMutable(transform: (T) -> Iterable<R>): MutableList<R> = flatMap(transform).toMutableList()
+inline fun <T, reified R> Collection<T>.mapArray(transform: (T) -> R): Array<R> = map(transform).toTypedArray()
 
-fun <T> List<T>.reversedMutable(): MutableList<T> = reversed().toMutableList()
+inline fun <T, R> Collection<T>.mapIndexedMutable(transform: (Int, T) -> R): MutableList<R> = mapIndexed(transform).toMutableList()
+
+inline fun <T, R> Collection<T>.flatMapMutable(transform: (T) -> Iterable<R>): MutableList<R> = flatMap(transform).toMutableList()
+
+fun <T> Collection<T>.reversedMutable(): MutableList<T> = reversed().toMutableList()
+
+infix fun <T> Collection<T>.andMaybe(element: T?) = element?.let { this + it } ?: this
 
 infix fun <T> List<T>.andMaybe(element: T?) = element?.let { this + it } ?: this
+
+infix fun <T> Set<T>.andMaybe(element: T?) = element?.let { this + it } ?: this
 
 fun String.toTrilean(): Trilean = when(this) {
     "true" -> Trilean.TRUE
@@ -201,3 +214,65 @@ fun <T> tryOrNull(action: () -> T): T? {
         null
     }
 }
+
+fun <T, R> Collection<Pair<T, R>>.split(): Pair<Collection<T>, Collection<R>> {
+    return map { it.first } to map { it.second }
+}
+
+fun <T, R> Set<Pair<T, R>>.split(): Pair<Set<T>, Set<R>> {
+    return mapSet { it.first } to mapSet { it.second }
+}
+
+fun <T, R> List<Pair<T, R>>.split(): Pair<List<T>, List<R>> {
+    return map { it.first } to map { it.second }
+}
+
+fun <T> List<T>.indicesWhere(predicate: (T) -> Boolean): List<Int> {
+    val indices = mutableListOf<Int>()
+    for ((i, item) in withIndex()) {
+        if (predicate(item)) {
+            indices.add(i)
+        }
+    }
+    return indices
+}
+
+fun JType.toType(): Type {
+    return when (this) {
+        is Class<*> -> {
+            ClassType(this, null)
+        }
+        is ParameterizedType -> {
+            ClassType(toPlainClass(), jTypeArgumentsToTypeArguments(actualTypeArguments))
+        }
+        is GenericArrayType -> {
+            return ArrayType(type = genericComponentType.toType())
+        }
+        else -> {
+            throw InternalError("Didn't expect type $this to be ${javaClass.name}")
+        }
+    }
+}
+
+private fun jTypeArgumentsToTypeArguments(typeArguments: Array<out JType>): TypeArgument {
+    return TypeArgument(typeArguments.map { TypeProjection(type = it.toType()) })
+}
+
+fun JType.toPlainClass(): Class<*> {
+    return when (this) {
+        is Class<*> -> this
+        is ParameterizedType -> this.rawType as Class<*>
+        else -> throw InternalError("Didn't expect $this to be ${this.javaClass.name}")
+    }
+}
+
+val AccessibleObject.type: Type get() = when (this) {
+    is Constructor<*> -> declaringClass.toType()
+    is Field -> genericType.toType()
+    is Method -> genericReturnType.toType()
+    else -> throw InternalError("Didn't expect AccessibleObject to be ${javaClass.name}")
+}
+
+fun <T> List<T>.dropSurrounding(n: Int): List<T> = drop(1).dropLast(1)
+
+fun <T> Array<T>.dropSurrounding(n: Int): List<T> = drop(1).dropLast(1)

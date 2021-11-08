@@ -5,6 +5,7 @@ import aprl.lang.annotation.AnnotationRetention
 typealias Annotations = MutableList<Triple<Class<*>, ValueArguments, AnnotationRetention>>
 
 fun Annotations(): Annotations = mutableListOf()
+fun Annotations(vararg annotations: Triple<Class<*>, ValueArguments, AnnotationRetention>): Annotations = mutableListOf(*annotations)
 
 @JvmName("annotationsToJava()")
 fun Annotations.toJava(): String {
@@ -21,12 +22,17 @@ fun Annotations.toJava(): String {
 
 typealias ValueArguments = MutableList<ValueArgument>
 
+fun ValueArguments(): ValueArguments = mutableListOf()
+
 @JvmName("valueArgumentsToJava()")
 fun ValueArguments.toJava(): String {
     return joinToString(", ") { it.toJava() }
 }
 
 typealias Statements = MutableList<Statement>
+
+fun Statements(): Statements = mutableListOf()
+fun Statements(vararg statements: Statement): Statements = mutableListOf(*statements)
 
 @JvmName("statementsToJava()")
 fun Statements.toJava(): String {
@@ -41,3 +47,5 @@ fun Pair<Class<*>, TypeArgument?>.toJava(): String {
     }
     return sb.toString()
 }
+
+typealias Position = Pair<Int, Int>

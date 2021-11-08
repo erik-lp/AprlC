@@ -1,7 +1,10 @@
 package aprl.compiler.jvm
 
+import aprl.compiler.toType
 import aprl.lang.Complex
 import aprl.lang.Trilean
+import java.lang.reflect.AccessibleObject
+import java.lang.reflect.Method
 
 interface ClassMember {
     val enclosingClass: ClassMemberOwner?
@@ -77,6 +80,28 @@ enum class Modifier(private val java: String?) : Java {
     
     override fun toJava(): String = java ?: throw InternalError("$this does not have a java equivalent")
     
+    override fun toString() = super.toString().lowercase()
+    
+    fun compatibleWith(other: Modifier): Boolean {
+        if (this == other) {
+            return false
+        }
+        return other !in when (this) {
+            PUBLIC -> arrayOf(LOCAL, BOUNDED, PRIVATE)
+            LOCAL -> arrayOf(PUBLIC, BOUNDED, PRIVATE)
+            BOUNDED -> arrayOf(PUBLIC, LOCAL, PRIVATE)
+            PRIVATE -> arrayOf(PUBLIC, LOCAL, BOUNDED)
+            ABSTRACT -> arrayOf(FINAL, INLINE, EXTERNAL, SYNC)
+            FINAL -> arrayOf(ABSTRACT, OPEN)
+            OPEN -> arrayOf(FINAL, INLINE, EXTERNAL, SYNC)
+            COVER -> arrayOf()
+            PARAMS -> arrayOf()
+            INLINE -> arrayOf(ABSTRACT, OPEN, EXTERNAL)
+            SYNC -> arrayOf(ABSTRACT, OPEN)
+            EXTERNAL -> arrayOf(INLINE, ABSTRACT, OPEN)
+        }
+    }
+    
 }
 
 enum class Visibility {
@@ -88,7 +113,7 @@ enum class Visibility {
 
 abstract class ClassMemberOwner(val static: Boolean) : TopLevelObject, Modifiable {
     abstract val name: String
-    val superClass: Class<*> = this.javaClass // TODO: ClassMemberOwner.superClass
+    abstract val superClasses: MutableList<Type>
 }
 
 class Clazz(
@@ -97,7 +122,7 @@ class Clazz(
     override val annotations: Annotations = Annotations(),
     override val modifiers: MutableSet<Modifier> = mutableSetOf(),
     val typeParameters: MutableList<TypeParameter> = mutableListOf(),
-    val superClasses: MutableList<Type> = mutableListOf(),
+    override val superClasses: MutableList<Type> = mutableListOf(),
     val classMembers: MutableList<ClassMember> = mutableListOf(),
 ) : ClassMemberOwner(false) {
 
@@ -108,7 +133,7 @@ class Struct(
     override val enclosingClass: ClassMemberOwner?,
     override val annotations: Annotations = Annotations(),
     override val modifiers: MutableSet<Modifier> = mutableSetOf(),
-    val superClasses: MutableList<Type> = mutableListOf(),
+    override val superClasses: MutableList<Type> = mutableListOf(),
     val structMembers: MutableList<StructMember> = mutableListOf(),
 ) : ClassMemberOwner(true)
 
@@ -118,7 +143,7 @@ class Interface(
     override val annotations: Annotations = Annotations(),
     override val modifiers: MutableSet<Modifier> = mutableSetOf(),
     val typeParameters: MutableList<TypeParameter> = mutableListOf(),
-    val superInterfaces: MutableList<Type> = mutableListOf(),
+    override val superClasses: MutableList<Type> = mutableListOf(),
     val interfaceMembers: MutableList<ClassMember> = mutableListOf(),
 ) : ClassMemberOwner(false)
 
@@ -127,7 +152,9 @@ class Annotation(
     override val enclosingClass: ClassMemberOwner?,
     override val annotations: Annotations = Annotations(),
     override val modifiers: MutableSet<Modifier> = mutableSetOf(),
-) : ClassMemberOwner(false)
+) : ClassMemberOwner(false) {
+    override val superClasses: MutableList<Type> = mutableListOf()
+}
 
 class Enum(
     val name: String,
@@ -141,7 +168,9 @@ class Document(
     override val enclosingClass: ClassMemberOwner?,
     override val annotations: Annotations = Annotations(),
     override val modifiers: MutableSet<Modifier> = mutableSetOf(),
-) : ClassMemberOwner(false)
+) : ClassMemberOwner(false) {
+    override val superClasses: MutableList<Type> = mutableListOf()
+}
 
 open class Function(
     val name: String,
@@ -150,7 +179,7 @@ open class Function(
     override val modifiers: MutableSet<Modifier> = mutableSetOf(),
     val typeParameters: MutableList<TypeParameter> = mutableListOf(),
     val parameters: MutableList<MethodParameter> = mutableListOf(),
-    val returnType: Pair<Class<*>, TypeArgument?>,
+    val returnType: Type,
     val statements: Statements,
 ) : OnlyClassMember, Modifiable
 
@@ -172,20 +201,20 @@ class MethodParameter(
     val modifiers: MutableSet<Modifier> = mutableSetOf(),
     val annotations: Annotations = Annotations(),
     val name: String,
-    val type: Type,
+    override val type: Type,
     val expression: Expression? = null,
-)
+) : Typed
 
 class Property(
     val name: String,
     override val enclosingClass: ClassMemberOwner,
     override val annotations: Annotations = Annotations(),
     override val modifiers: MutableSet<Modifier> = mutableSetOf(),
-    val type: Pair<Class<*>, TypeArgument?>,
+    override val type: Type,
     val initialValue: Expression?,
     val final: Boolean,
     val static: Boolean,
-) : OnlyClassMember, Modifiable
+) : OnlyClassMember, Modifiable, Typed
 
 class LoadScript(override val enclosingClass: ClassMemberOwner, val statements: Statements) : OnlyClassMember
 
@@ -194,9 +223,17 @@ class TypeParameter(
     val constraints: Array<Type>,
 )
 
-abstract class Statement : Java
+sealed interface Typed {
+    val type: Type
+}
+
+abstract class Statement : Java, Typed {
+    abstract override val type: Type
+}
 
 class SuperCall(val valueArguments: ValueArguments) : Statement() {
+    
+    override val type = ClassType(Void.javaClass)
     
     override fun toJava(): String {
         val sb = StringBuilder()
@@ -209,12 +246,16 @@ class SuperCall(val valueArguments: ValueArguments) : Statement() {
 }
 
 class ReturnStatement(val expression: Expression) : Statement() {
+    
+    override val type = expression.type
+    
     override fun toJava(): String {
         TODO("Not yet implemented")
     }
+    
 }
 
-class LocalVariable(val name: String, val type: Pair<Class<*>, TypeArgument?>, val final: Boolean, val initialValue: Expression?) : Statement() {
+class LocalVariable(val name: String, override val type: Type, val final: Boolean, val initialValue: Expression?) : Statement() {
     val annotations = Annotations()
     
     override fun toJava(): String {
@@ -229,6 +270,7 @@ class ValueArgument(val annotations: Annotations, val value: Expression) : Java 
 }
 
 class Assignment(val assignTo: AssignableExpression, val op: Operator, val assignFrom: Expression) : Statement() {
+    
     enum class Operator {
         ASSIGN,
         DEFINE,
@@ -244,18 +286,21 @@ class Assignment(val assignTo: AssignableExpression, val op: Operator, val assig
         ELVIS_ASSIGN
     }
     
+    override val type = assignFrom.type
+    
     override fun toJava(): String {
         TODO("Not yet implemented")
     }
+    
 }
 
-class AssignableExpression(val expression: Expression, val assignableSuffixes: MutableList<AssignableSuffix>) {
+class AssignableExpression(val expression: Expression, val getters: List<Pair<AccessibleObject, Boolean>>, val setter: Pair<AccessibleObject, Boolean>?, val type: Type) {
 
 }
 
-interface AssignableSuffix
+sealed interface AssignableSuffix
 
-class IndexingSuffix(expressions: MutableList<Expression>) : AssignableSuffix {
+class IndexingSuffix(val expressions: MutableList<Expression>) : AssignableSuffix {
 
 }
 
@@ -267,7 +312,9 @@ class NavigationSuffix(val op: Operator, val identifier: String) : AssignableSuf
     }
 }
 
-abstract class LoopStatement : Statement()
+abstract class LoopStatement : Statement() {
+    final override val type = throw UnsupportedOperationException("Loops are not expressions")
+}
 
 class ForStatement(
     val annotations: Annotations,
@@ -292,13 +339,13 @@ class DoWhileStatement(val statements: Statements, val expression: Expression) :
     }
 }
 
-class Expression(val disjunction: Disjunction) : Statement() {
+class Expression(val disjunction: Disjunction, override val type: Type) : Statement() {
     override fun toJava(): String {
         return disjunction.toJava()
     }
 }
 
-class Disjunction(val conjunction: Conjunction, val additionalConjunctions: MutableList<Conjunction>) : Java {
+class Disjunction(val conjunction: Conjunction, val additionalConjunctions: MutableList<Conjunction>, val type: Type) : Java {
     override fun toJava(): String {
         val sb = StringBuilder()
         sb.append(conjunction.toJava())
@@ -309,18 +356,18 @@ class Disjunction(val conjunction: Conjunction, val additionalConjunctions: Muta
     }
 }
 
-class Conjunction(val equalityComparison: EqualityComparison, val additionalEqualityComparisons: MutableList<EqualityComparison>) : Java {
+class Conjunction(val equalityComparison: EqualityComparison, val additionalEqualityComparisons: MutableList<EqualityComparison>, val type: Type) : Java {
     override fun toJava(): String {
         val sb = StringBuilder()
         sb.append(equalityComparison.toJava())
         if (additionalEqualityComparisons.isNotEmpty()) {
-            sb.append(additionalEqualityComparisons.joinToString(" || ", " || ") { it.toJava() })
+            sb.append(additionalEqualityComparisons.joinToString(" && ", " && ") { it.toJava() })
         }
         return sb.toString()
     }
 }
 
-class EqualityComparison(val identityComparison: IdentityComparison, val additionalIdentityComparisons: MutableList<IdentityComparison>) : Java {
+class EqualityComparison(val identityComparison: IdentityComparison, val additionalIdentityComparisons: MutableList<IdentityComparison>, val type: Type) : Java {
     override fun toJava(): String {
         val sb = StringBuilder()
         sb.append(identityComparison.toJava())
@@ -331,7 +378,7 @@ class EqualityComparison(val identityComparison: IdentityComparison, val additio
     }
 }
 
-class IdentityComparison(val comparison: Comparison, val additionalComparisons: MutableList<Comparison>) : Java {
+class IdentityComparison(val comparison: Comparison, val additionalComparisons: MutableList<Comparison>, val type: Type) : Java {
     override fun toJava(): String {
         val sb = StringBuilder()
         sb.append(comparison.toJava())
@@ -342,7 +389,7 @@ class IdentityComparison(val comparison: Comparison, val additionalComparisons: 
     }
 }
 
-class Comparison(val namedInfixExpression: NamedInfixExpression, val additionalNamedInfixExpressions: MutableList<Pair<Operator, NamedInfixExpression>>) : Java {
+class Comparison(val namedInfixExpression: NamedInfixExpression, val additionalNamedInfixExpressions: MutableList<Pair<Operator, NamedInfixExpression>>, val type: Type) : Java {
     enum class Operator {
         LT, GT, LEQ, GEQ
     }
@@ -352,33 +399,33 @@ class Comparison(val namedInfixExpression: NamedInfixExpression, val additionalN
     }
 }
 
-class CallSuffix(val typeArguments: TypeArgument?, val lambdaCallSuffix: LambdaCallSuffix?, val valueArguments: ValueArguments?) : Statement() {
+class CallSuffix(val typeArguments: TypeArgument?, val lambdaCallSuffix: LambdaCallSuffix?, val valueArguments: ValueArguments?) : Java {
     override fun toJava(): String {
         TODO("Not yet implemented")
     }
 }
 
-class LambdaCallSuffix(val valueArguments: ValueArguments?, val annotatedLambda: AnnotatedLambda) : Statement() {
+class LambdaCallSuffix(val valueArguments: ValueArguments?, val annotatedLambda: AnnotatedLambda) : Java {
     override fun toJava(): String {
         TODO("Not yet implemented")
     }
 }
 
-class AnnotatedLambda(val annotations: Annotations, val lambdaLiteral: LambdaLiteral) : Statement() {
+class AnnotatedLambda(val annotations: Annotations, val lambdaLiteral: LambdaLiteral) : Java {
     override fun toJava(): String {
         TODO("Not yet implemented")
     }
 }
 
-class LambdaLiteral(val parameters: MutableList<LambdaParameter>, val statements: Statements) {
-
+class LambdaLiteral(val parameters: List<LambdaParameter>, val statements: Statements) : Typed {
+    override val type: Type = FunctionType(Annotations(), parameters.map { it.type }, statements.last().type)
 }
 
-class LambdaParameter(val variableDeclaration: VariableDeclaration?, val type: Type?)
+class LambdaParameter(val annotations: Annotations, val name: String, val type: Type)
 
 class VariableDeclaration(val annotations: Annotations, val name: String, val type: Type?)
 
-class NamedInfixExpression(val elvisExpression: ElvisExpression, val expressions: MutableList<Pair<Operator, ElvisOrType>> = mutableListOf()) {
+class NamedInfixExpression(val elvisExpression: ElvisExpression, val expressions: List<Pair<Operator, ElvisOrType>> = mutableListOf(), val type: Type) : Java {
     
     enum class Operator {
         IN, NOT_IN, IS, NOT_IS
@@ -386,22 +433,35 @@ class NamedInfixExpression(val elvisExpression: ElvisExpression, val expressions
     
     class ElvisOrType(val elvis: ElvisExpression?, val type: Type?)
     
+    override fun toJava(): String {
+        TODO("Not yet implemented")
+    }
+    
 }
 
 class ElvisExpression(
     val infixFunctionCall: InfixFunctionCall,
     val additionalInfixFunctionCalls: MutableList<InfixFunctionCall>,
-)
+    val type: Type
+) : Java {
+    
+    override fun toJava(): String {
+        TODO("Not yet implemented")
+    }
+    
+}
 
 class InfixFunctionCall(
     val rangeExpression: RangeExpression,
-    val additionalRangeExpressions: MutableList<Pair<String, RangeExpression>>,
+    val additionalRangeExpressions: MutableList<Pair<Method, RangeExpression>>,
+    val type: Type
 )
 
 class RangeExpression(
     val xorExpression: XorExpression,
     val operator: Operator?,
     val to: XorExpression?,
+    val type: Type
 ) {
     enum class Operator {
         TO, // up, inclusive
@@ -413,11 +473,13 @@ class RangeExpression(
 class XorExpression(
     val additiveExpression: AdditiveExpression,
     val additionalAdditiveExpressions: MutableList<AdditiveExpression>,
+    val type: Type
 )
 
 class AdditiveExpression(
     val multiplicativeExpression: MultiplicativeExpression,
     val additionalMultiplicativeExpressions: MutableList<Pair<Operator, MultiplicativeExpression>>,
+    val type: Type
 ) {
     enum class Operator {
         PLUS, MINUS
@@ -427,6 +489,7 @@ class AdditiveExpression(
 class MultiplicativeExpression(
     val exponentialExpression: ExponentialExpression,
     val additionalExponentialExpressions: MutableList<Pair<Operator, ExponentialExpression>>,
+    val type: Type
 ) {
     enum class Operator {
         MUL, DIV, MOD
@@ -436,11 +499,13 @@ class MultiplicativeExpression(
 class ExponentialExpression(
     val asExpression: AsExpression,
     val additionalAsExpressions: MutableList<AsExpression>,
+    val type: Type
 )
 
 class AsExpression(
     val prefixUnaryExpression: PrefixUnaryExpression,
-    val typeCasts: MutableList<Pair<Operator, Type>>,
+    val operator: Operator?,
+    val type: Type
 ) {
     enum class Operator {
         AS, AS_QUEST
@@ -450,6 +515,7 @@ class AsExpression(
 class PrefixUnaryExpression(
     val unaryPrefixes: MutableList<UnaryPrefix>,
     val postfixUnaryExpression: PostfixUnaryExpression,
+    val type: Type
 )
 
 enum class UnaryPrefix {
@@ -464,6 +530,7 @@ enum class UnaryPrefix {
 class PostfixUnaryExpression(
     val atomicExpression: AtomicExpression,
     val unaryPostfixes: MutableList<UnaryPostfix>,
+    val type: Type
 )
 
 class UnaryPostfix(
@@ -472,13 +539,7 @@ class UnaryPostfix(
     val callSuffix: CallSuffix?,
     val indexingSuffix: IndexingSuffix?,
     val navigationSuffix: NavigationSuffix?,
-) {
-    constructor(postfixUnaryOperator: PostfixUnaryOperator) : this(postfixUnaryOperator, null, null, null, null)
-    constructor(typeArguments: TypeArgument) : this(null, typeArguments, null, null, null)
-    constructor(callSuffix: CallSuffix) : this(null, null, callSuffix, null, null)
-    constructor(indexingSuffix: IndexingSuffix) : this(null, null, null, indexingSuffix, null)
-    constructor(navigationSuffix: NavigationSuffix) : this(null, null, null, null, navigationSuffix)
-}
+)
 
 enum class PostfixUnaryOperator {
     INCR,
@@ -488,9 +549,8 @@ enum class PostfixUnaryOperator {
 
 class AtomicExpression(
     val parenthesizedExpression: Expression?,
-    val simpleIdentifier: String?,
+    val identifier: List<String>?,
     val literalConstant: LiteralConstant?,
-    val contextualReference: MutableList<String>?,
     val callableReference: CallableReference?,
     val lambdaLiteral: LambdaLiteral?,
     val collectionLiteral: MutableList<Expression>?,
@@ -500,10 +560,12 @@ class AtomicExpression(
     val optionalTryExpression: OptionalTryExpression?,
     val tryExpression: TryExpression?,
     val jumpExpression: JumpExpression?,
+    val type: Type
 )
 
-object ThisLiteral
-object SuperLiteral
+class ThisLiteral(val clazz: Type)
+
+class SuperLiteral(val superClass: Type)
 
 class LiteralConstant(
     val nullLiteral: Null?,
@@ -518,16 +580,17 @@ class LiteralConstant(
     val complexLiteral: Complex?,
     val characterLiteral: Char?,
     val stringLiteral: String?,
+    val type: Type
 )
 
 object Null
 
 class CallableReference(
-    val type: ReceiverType?,
-    val identifier: String,
+    val method: Method,
+    val type: Type = method.genericReturnType.toType()
 )
 
-interface ConditionalExpression
+interface ConditionalExpression : Typed
 
 class IfExpression(
     val unless: Boolean,
@@ -535,33 +598,39 @@ class IfExpression(
     val statements: Statements,
     val elsifExpressions: MutableList<ElsifExpression>,
     val elseStatements: Statements?,
+    override val type: Type
 ) : ConditionalExpression
 
 class ElsifExpression(
     val condition: Expression,
     val statements: Statements,
+    val type: Type
 )
 
 class MatchExpression(
     val expression: Expression,
     val matchEntries: MutableList<MatchEntry>,
+    override val type: Type
 ) : ConditionalExpression
 
 class MatchEntry(
     val default: Boolean,
     val cases: MutableList<LiteralConstant>,
     val statements: Statements,
+    val type: Type
 )
 
 class OptionalTryExpression(
     val statements: Statements?,
     val expression: Expression?,
+    val type: NullableType
 )
 
 class TryExpression(
     val statements: Statements,
-    val catchBlocks: MutableList<CatchBlock>?,
+    val catchBlocks: MutableList<CatchBlock>,
     val finallyBlock: FinallyBlock?,
+    val type: Type
 )
 
 class CatchBlock(
@@ -573,11 +642,12 @@ class CatchBlock(
 
 class FinallyBlock(val statements: Statements)
 
-interface JumpExpression
+sealed class JumpExpression(val type: Type)
 
-class TriggerExpression(val expression: Expression) : JumpExpression
+class TriggerExpression(val expression: Expression) : JumpExpression(ClassType(aprl.lang.Nothing::class.java))
 
-class ReturnExpression(val expression: Expression) : JumpExpression
+class ReturnExpression(val expression: Expression) : JumpExpression(expression.type)
 
-object ContinueExpression : JumpExpression
-object BreakExpression : JumpExpression
+object ContinueExpression : JumpExpression(ClassType(aprl.lang.Nothing::class.java))
+
+object BreakExpression : JumpExpression(ClassType(aprl.lang.Nothing::class.java))
