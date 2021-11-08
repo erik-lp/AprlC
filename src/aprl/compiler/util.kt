@@ -273,6 +273,6 @@ val AccessibleObject.type: Type get() = when (this) {
     else -> throw InternalError("Didn't expect AccessibleObject to be ${javaClass.name}")
 }
 
-fun <T> List<T>.dropSurrounding(n: Int): List<T> = drop(1).dropLast(1)
+fun <T> List<T>.dropSurrounding(n: Int): List<T> = drop(n).dropLast(n)
 
-fun <T> Array<T>.dropSurrounding(n: Int): List<T> = drop(1).dropLast(1)
+fun <T> Array<T>.dropSurrounding(n: Int): List<T> = drop(n).dropLast(n)
