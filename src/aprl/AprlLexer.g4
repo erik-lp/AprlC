@@ -22,6 +22,7 @@ ANONYMOUS: 'anonymous';
 ENUM: 'enum';
 ANNOTATION: 'annotation';
 PARTNER: 'partner';
+BLUEPRINT: 'blueprint';
 
 THIS: 'this';
 SUPER: 'super';

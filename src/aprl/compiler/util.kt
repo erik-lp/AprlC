@@ -11,6 +11,7 @@ import java.lang.reflect.Constructor
 import java.lang.reflect.Type as JType
 import java.math.BigDecimal
 import java.math.BigInteger
+import java.util.ArrayList
 
 @Suppress("DEPRECATION")
 fun loadPackage(string: String): Package? {
@@ -276,3 +277,29 @@ val AccessibleObject.type: Type get() = when (this) {
 fun <T> List<T>.dropSurrounding(n: Int): List<T> = drop(n).dropLast(n)
 
 fun <T> Array<T>.dropSurrounding(n: Int): List<T> = drop(n).dropLast(n)
+
+fun <T> List<List<T>>.allAt(index: Int): List<T> {
+    return map { it[index] }
+}
+
+val <T> List<T>.allEqual: Boolean
+    get() {
+        return all { it == first() }
+    }
+
+val <T> Class<T>.hierarchy: List<Class<in T>>
+    get() {
+        val hierarchy = ArrayList<Class<in T>>()
+        var superClass = superclass
+        while (superClass != null) {
+            hierarchy.add(superClass)
+            superClass = superClass.superclass
+        }
+        return hierarchy.reversed()
+    }
+
+fun <T> List<T>.contentEquals(other: List<T>): Boolean {
+    return size == other.size && zip(other).all { it.first == it.second }
+}
+
+fun <T> T.asList(): List<T> = listOf(this)

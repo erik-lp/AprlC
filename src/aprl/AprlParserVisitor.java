@@ -1,4 +1,4 @@
-// Generated from C:/Users/erik-/IdeaProjects/AprlC/src/aprl\AprlParser.g4 by ANTLR 4.9.1
+// Generated from C:/Users/erik-/IdeaProjects/AprlC/src/aprl\AprlParser.g4 by ANTLR 4.9.2
 package aprl;
 import org.antlr.v4.runtime.tree.ParseTreeVisitor;
 
@@ -47,23 +47,23 @@ public interface AprlParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitImportIdentifier(AprlParser.ImportIdentifierContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link AprlParser#subImportIdentifier}.
+	 * Visit a parse tree produced by {@link AprlParser#allImport}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitSubImportIdentifier(AprlParser.SubImportIdentifierContext ctx);
+	T visitAllImport(AprlParser.AllImportContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link AprlParser#multiImport}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitMultiImport(AprlParser.MultiImportContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link AprlParser#singleImport}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
 	T visitSingleImport(AprlParser.SingleImportContext ctx);
-	/**
-	 * Visit a parse tree produced by {@link AprlParser#importAlias}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitImportAlias(AprlParser.ImportAliasContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link AprlParser#topLevelObject}.
 	 * @param ctx the parse tree
@@ -113,6 +113,12 @@ public interface AprlParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitClassParameter(AprlParser.ClassParameterContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link AprlParser#valOrVar}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitValOrVar(AprlParser.ValOrVarContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link AprlParser#delegationSpecifiers}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -130,12 +136,6 @@ public interface AprlParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitInterfaceDelegationSpecifiers(AprlParser.InterfaceDelegationSpecifiersContext ctx);
-	/**
-	 * Visit a parse tree produced by {@link AprlParser#annotatedInterfaceDelegationSpecifier}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitAnnotatedInterfaceDelegationSpecifier(AprlParser.AnnotatedInterfaceDelegationSpecifierContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link AprlParser#valueArguments}.
 	 * @param ctx the parse tree
@@ -425,6 +425,24 @@ public interface AprlParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitFunctionBody(AprlParser.FunctionBodyContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link AprlParser#blueprintDeclaration}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitBlueprintDeclaration(AprlParser.BlueprintDeclarationContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link AprlParser#blueprintBody}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitBlueprintBody(AprlParser.BlueprintBodyContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link AprlParser#blueprintMember}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitBlueprintMember(AprlParser.BlueprintMemberContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link AprlParser#block}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -466,12 +484,6 @@ public interface AprlParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitWhileStatement(AprlParser.WhileStatementContext ctx);
-	/**
-	 * Visit a parse tree produced by {@link AprlParser#doWhileStatement}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitDoWhileStatement(AprlParser.DoWhileStatementContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link AprlParser#assignment}.
 	 * @param ctx the parse tree
@@ -677,6 +689,12 @@ public interface AprlParserVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitCatchBlock(AprlParser.CatchBlockContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link AprlParser#caughtException}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitCaughtException(AprlParser.CaughtExceptionContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link AprlParser#finallyBlock}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -730,12 +748,6 @@ public interface AprlParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitBoolLiteral(AprlParser.BoolLiteralContext ctx);
-	/**
-	 * Visit a parse tree produced by {@link AprlParser#trileanLiteral}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitTrileanLiteral(AprlParser.TrileanLiteralContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link AprlParser#integerLiteral}.
 	 * @param ctx the parse tree
@@ -958,12 +970,6 @@ public interface AprlParserVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitAssignableExpression(AprlParser.AssignableExpressionContext ctx);
-	/**
-	 * Visit a parse tree produced by {@link AprlParser#parenthesizedAssignableExpression}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitParenthesizedAssignableExpression(AprlParser.ParenthesizedAssignableExpressionContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link AprlParser#assignableSuffix}.
 	 * @param ctx the parse tree

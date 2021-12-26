@@ -1,4 +1,4 @@
-// Generated from C:/Users/erik-/IdeaProjects/AprlC/src/aprl\AprlParser.g4 by ANTLR 4.9.1
+// Generated from C:/Users/erik-/IdeaProjects/AprlC/src/aprl\AprlParser.g4 by ANTLR 4.9.2
 package aprl;
 
 import org.antlr.v4.runtime.ParserRuleContext;
@@ -88,13 +88,25 @@ public class AprlParserBaseListener implements AprlParserListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
-	@Override public void enterSubImportIdentifier(AprlParser.SubImportIdentifierContext ctx) { }
+	@Override public void enterAllImport(AprlParser.AllImportContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
-	@Override public void exitSubImportIdentifier(AprlParser.SubImportIdentifierContext ctx) { }
+	@Override public void exitAllImport(AprlParser.AllImportContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterMultiImport(AprlParser.MultiImportContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitMultiImport(AprlParser.MultiImportContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
@@ -107,18 +119,6 @@ public class AprlParserBaseListener implements AprlParserListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitSingleImport(AprlParser.SingleImportContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void enterImportAlias(AprlParser.ImportAliasContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void exitImportAlias(AprlParser.ImportAliasContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
@@ -220,6 +220,18 @@ public class AprlParserBaseListener implements AprlParserListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
+	@Override public void enterValOrVar(AprlParser.ValOrVarContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitValOrVar(AprlParser.ValOrVarContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
 	@Override public void enterDelegationSpecifiers(AprlParser.DelegationSpecifiersContext ctx) { }
 	/**
 	 * {@inheritDoc}
@@ -251,18 +263,6 @@ public class AprlParserBaseListener implements AprlParserListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitInterfaceDelegationSpecifiers(AprlParser.InterfaceDelegationSpecifiersContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void enterAnnotatedInterfaceDelegationSpecifier(AprlParser.AnnotatedInterfaceDelegationSpecifierContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void exitAnnotatedInterfaceDelegationSpecifier(AprlParser.AnnotatedInterfaceDelegationSpecifierContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
@@ -844,6 +844,42 @@ public class AprlParserBaseListener implements AprlParserListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
+	@Override public void enterBlueprintDeclaration(AprlParser.BlueprintDeclarationContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitBlueprintDeclaration(AprlParser.BlueprintDeclarationContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterBlueprintBody(AprlParser.BlueprintBodyContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitBlueprintBody(AprlParser.BlueprintBodyContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterBlueprintMember(AprlParser.BlueprintMemberContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitBlueprintMember(AprlParser.BlueprintMemberContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
 	@Override public void enterBlock(AprlParser.BlockContext ctx) { }
 	/**
 	 * {@inheritDoc}
@@ -923,18 +959,6 @@ public class AprlParserBaseListener implements AprlParserListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitWhileStatement(AprlParser.WhileStatementContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void enterDoWhileStatement(AprlParser.DoWhileStatementContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void exitDoWhileStatement(AprlParser.DoWhileStatementContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
@@ -1348,6 +1372,18 @@ public class AprlParserBaseListener implements AprlParserListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
+	@Override public void enterCaughtException(AprlParser.CaughtExceptionContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitCaughtException(AprlParser.CaughtExceptionContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
 	@Override public void enterFinallyBlock(AprlParser.FinallyBlockContext ctx) { }
 	/**
 	 * {@inheritDoc}
@@ -1451,18 +1487,6 @@ public class AprlParserBaseListener implements AprlParserListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitBoolLiteral(AprlParser.BoolLiteralContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void enterTrileanLiteral(AprlParser.TrileanLiteralContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void exitTrileanLiteral(AprlParser.TrileanLiteralContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
@@ -1907,18 +1931,6 @@ public class AprlParserBaseListener implements AprlParserListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitAssignableExpression(AprlParser.AssignableExpressionContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void enterParenthesizedAssignableExpression(AprlParser.ParenthesizedAssignableExpressionContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void exitParenthesizedAssignableExpression(AprlParser.ParenthesizedAssignableExpressionContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *

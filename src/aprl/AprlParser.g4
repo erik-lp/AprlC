@@ -17,29 +17,37 @@ importList
     : importHeader*;
 
 importHeader
-    : USING importIdentifier (COMMA importIdentifier)* semi?;
+    : USING importIdentifier (COMMA importIdentifier)* semi+;
 
 importIdentifier
-    : singleImport | identifier (PERIOD (MUL | LSQUARE subImportIdentifier (COMMA subImportIdentifier)* RSQUARE))?;
+    : singleImport | allImport | multiImport;
 
-subImportIdentifier
-    : simpleIdentifier importAlias?;
+allImport
+    : identifier PERIOD MUL;
+
+multiImport
+    : identifier PERIOD LSQUARE singleImport (COMMA singleImport)* RSQUARE;
 
 singleImport
-    : identifier importAlias;
-
-importAlias
-    : ALIAS simpleIdentifier;
+    : identifier (ALIAS simpleIdentifier)?;
 
 // Top level objects
 
 topLevelObject
-    : classDeclaration | interfaceDeclaration | annotationDeclaration | documentDeclaration | structDeclaration | enumDeclaration | extensionDeclaration | functionDeclaration | propertyDeclaration;
+    : classDeclaration
+    | interfaceDeclaration
+    | annotationDeclaration
+    | documentDeclaration
+    | structDeclaration
+    | enumDeclaration
+    | extensionDeclaration
+    | functionDeclaration
+    | propertyDeclaration;
 
 // Class
 
 classDeclaration
-    : modifierList?
+    : modifierList
     CLASS
     NL* simpleIdentifier
     (NL* typeParameters)?
@@ -48,7 +56,7 @@ classDeclaration
     (NL* classBody)?;
 
 interfaceDeclaration
-    : modifierList?
+    : modifierList
     INTERFACE
     NL* simpleIdentifier
     (NL* typeParameters)?
@@ -56,14 +64,14 @@ interfaceDeclaration
     (NL* classBody)?;
 
 annotationDeclaration
-    : modifierList?
+    : modifierList
     ANNOTATION
     NL* simpleIdentifier
     (NL* primaryConstructor)?
     (NL* classBody)?;
 
 documentDeclaration
-    : modifierList?
+    : modifierList
     DOCUMENT
     NL* simpleIdentifier
     (NL* typeParameters)?
@@ -71,13 +79,16 @@ documentDeclaration
     (NL* classBody)?;
 
 primaryConstructor
-    : (modifierList? INIT NL*)? classParameters;
+    : (modifierList INIT NL*)? classParameters;
 
 classParameters
     : LPAREN NL* (classParameter (NL* COMMA NL* classParameter)*)? NL* RPAREN;
 
 classParameter
-    : modifierList? (VAL | VAR)? NL* simpleIdentifier NL* COLON NL* type (NL* ASSIGN NL* expression)?;
+    : modifierList valOrVar? NL* simpleIdentifier NL* COLON NL* type (NL* ASSIGN NL* expression)?;
+
+valOrVar
+    : VAL | VAR;
 
 delegationSpecifiers
     : delegationSpecifier (NL* COMMA NL* delegationSpecifier)*;
@@ -86,19 +97,16 @@ delegationSpecifier
     : identifier typeArguments? valueArguments?;
 
 interfaceDelegationSpecifiers
-    : annotatedInterfaceDelegationSpecifier (NL* COMMA NL* annotatedInterfaceDelegationSpecifier)*;
-
-annotatedInterfaceDelegationSpecifier
-    : annotations? identifier;
+    : identifier (NL* COMMA NL* identifier)*;
 
 valueArguments
     : LPAREN NL* (valueArgument (NL* COMMA NL* valueArgument)* NL*)? RPAREN;
 
 valueArgument
-    : annotations? expression;
+    : annotations expression;
 
 secondaryConstructor
-    : modifierList? INIT NL* functionValueParameters (NL* COLON NL* constructorDelegationCall)? NL* block?;
+    : modifierList INIT NL* functionValueParameters (NL* COLON NL* constructorDelegationCall)? NL* block?;
 
 constructorDelegationCall
     : (THIS | SUPER) NL* valueArguments;
@@ -116,7 +124,7 @@ initializerBody
     : INIT NL* block;
 
 partnerDeclaration
-    : modifierList? PARTNER (NL* classBody)?;
+    : modifierList PARTNER (NL* classBody)?;
 
 // Types
 
@@ -124,25 +132,25 @@ typeArguments
     : LANGLE NL* typeProjection (NL* COMMA typeProjection)* NL* RANGLE;
 
 typeProjection
-    : typeProjectionModifierList? type | QUEST;
+    : typeProjectionModifierList type | QUEST;
 
 typeProjectionModifierList
-    : (typeProjectionModifier NL*)+;
+    : annotations typeProjectionModifier?;
 
 typeProjectionModifier
-    : varianceModifier | annotation;
+    : varianceModifier;
 
 typeParameters
     : LANGLE NL* typeParameter (NL* COMMA NL* typeParameter)* NL* RANGLE;
 
 typeParameter
-    : typeParameterModifierList? simpleIdentifier (NL* COLON NL* type (NL* CONJ NL* type)*)?;
+    : typeParameterModifierList NL* simpleIdentifier (NL* COLON NL* type (NL* CONJ NL* type)*)?;
 
 typeParameterModifierList
-    : (typeParameterModifier NL*)+;
+    : annotations typeParameterModifier?;
 
 typeParameterModifier
-    : (reificationModifier | varianceModifier | annotation) NL*;
+    : reificationModifier | varianceModifier;
 
 reificationModifier
     : ACTUAL;
@@ -151,7 +159,7 @@ varianceModifier
     : SUB_ | SUPER;
 
 type
-    : annotations? (functionType | parenthesizedType | arrayType | nullableType | identifier typeArguments?);
+    : annotations (functionType | parenthesizedType | arrayType | nullableType | identifier typeArguments?);
 
 functionType
     : functionTypeParameters NL* RARROW_THICK NL* type;
@@ -174,7 +182,7 @@ nullableType
 // Struct
 
 structDeclaration
-    : modifierList? STRUCT
+    : modifierList STRUCT
     NL* simpleIdentifier
     (NL* LARROW NL* delegationSpecifiers)?
     (NL* structBody)?;
@@ -188,7 +196,7 @@ structMember
 // Enum
 
 enumDeclaration
-    : modifierList? ENUM NL* simpleIdentifier (NL* primaryConstructor)? (NL* enumBody);
+    : modifierList ENUM NL* simpleIdentifier (NL* primaryConstructor)? NL* enumBody;
 
 enumBody
     : LCURLY NL* enumEntries? (NL* SEMICOLON NL* classMember*)? NL* RCURLY;
@@ -197,12 +205,12 @@ enumEntries
     : enumEntry (NL* COMMA NL* enumEntry)*;
 
 enumEntry
-    : modifierList? simpleIdentifier (NL* valueArguments)? (NL* classBody)?;
+    : modifierList simpleIdentifier (NL* valueArguments)? (NL* classBody)?;
 
 // Extension
 
 extensionDeclaration
-    : modifierList?
+    : modifierList
     EXTENSION
     (NL* typeParameters)?
     NL* receiverType
@@ -217,26 +225,26 @@ extensionMember
 // Property
 
 propertyDeclaration
-    : modifierList?
+    : modifierList
     (DEF | CONST | VAR | VAL)
     NL* variableDeclaration
     (NL* ASSIGN NL* expression)?
     (NL* propertyBody)?;
 
 variableDeclaration
-    : annotations? simpleIdentifier (NL* COLON NL* type)?;
+    : annotations simpleIdentifier (NL* COLON NL* type)?;
 
 propertyBody
-    : LCURLY NL* (getter (semi* setter)? | setter (semi* getter)?)? NL* RCURLY;
+    : LCURLY NL* ((getter | setter) semi*)* NL* RCURLY;
 
 getter
-    : modifierList? GETTER (NL* LPAREN NL* RPAREN)? (NL* RARROW NL* type)? NL* functionBody?;
+    : modifierList GETTER (NL* LPAREN NL* RPAREN)? (NL* RARROW NL* type)? NL* functionBody?;
 
 setter
-    : modifierList? SETTER NL* ((LPAREN NL* functionValueParameterWithOptionalType NL* RPAREN)? (NL* RARROW NL* type)? NL* functionBody)?;
+    : modifierList SETTER NL* ((LPAREN NL* functionValueParameterWithOptionalType NL* RPAREN)? (NL* RARROW NL* type)? NL* functionBody)?;
 
 functionValueParameterWithOptionalType
-    : modifierList? parameterWithOptionalType;
+    : modifierList parameterWithOptionalType;
 
 parameterWithOptionalType
     : simpleIdentifier (NL* COLON NL* type)?;
@@ -244,7 +252,7 @@ parameterWithOptionalType
 // Function
 
 functionDeclaration
-    : modifierList?
+    : modifierList
     (FUNCTION | SCRIPT | OPERATOR)
     (NL* typeParameters)?
     NL* simpleIdentifier
@@ -256,7 +264,7 @@ functionValueParameters
     : LPAREN NL* (functionValueParameter (NL* COMMA NL* functionValueParameter)*)? NL* RPAREN;
 
 functionValueParameter
-    : modifierList? parameter (NL* ASSIGN NL* expression)?;
+    : modifierList parameter (NL* ASSIGN NL* expression)?;
 
 parameter
     : simpleIdentifier NL* COLON NL* type;
@@ -273,25 +281,22 @@ statements
     : (statement (semi+ statement)*)? semi*;
 
 statement
-    : annotations? NL* (localVariableDeclaration | assignment | loopStatement | expression);
+    : (localVariableDeclaration | assignment | loopStatement | expression);
 
 localVariableDeclaration
-    : annotations?
+    : annotations
     (DEF | CONST | VAR | VAL)
     NL* variableDeclaration
     (NL* ASSIGN NL* expression)?;
 
 loopStatement
-    : forStatement | whileStatement | doWhileStatement;
+    : forStatement | whileStatement;
 
 forStatement
-    : FOR NL* LPAREN NL* annotations? variableDeclaration NL* IN NL* expression NL* RPAREN NL* block;
+    : FOR NL* LPAREN NL* annotations variableDeclaration NL* IN NL* expression NL* RPAREN NL* block;
 
 whileStatement
-    : WHILE NL* LPAREN NL* expression NL* RPAREN NL* block;
-
-doWhileStatement
-    : DO NL* block NL* WHILE NL* LPAREN NL* expression NL* RPAREN;
+    : WHILE NL* expression NL* block;
 
 assignment
     : assignableExpression NL* assignmentOperator expression;
@@ -389,13 +394,13 @@ conditionalExpression
     : ifExpression | matchExpression;
 
 ifExpression
-    : (IF | UNLESS) NL* LPAREN NL* expression NL* RPAREN NL* block (NL* elsifExpression)* (NL* ELSE NL* block)?;
+    : (IF | UNLESS) NL* expression NL* block (NL* elsifExpression)* (NL* ELSE NL* block)?;
 
 elsifExpression
-    : ELSIF NL* LPAREN NL* expression NL* RPAREN NL* block;
+    : ELSIF NL* expression NL* block;
 
 matchExpression
-    : MATCH NL* LPAREN NL* expression NL* RPAREN NL* LCURLY (NL* matchEntry)+ NL* RCURLY;
+    : MATCH NL* expression NL* LCURLY (NL* matchEntry)+ NL* RCURLY;
 
 matchEntry
     : WHEN NL* literalConstant (NL* COMMA NL* literalConstant)* NL* RARROW_THICK NL* block semi? | ELSE NL* RARROW_THICK NL* block;
@@ -407,7 +412,10 @@ tryExpression
     : TRY NL* block (NL* catchBlock)* (NL* finallyBlock)?;
 
 catchBlock
-    : CATCH NL* LPAREN NL* annotations? simpleIdentifier NL* COLON NL* type (NL* CONJ NL* type)* NL* RPAREN NL* block;
+    : CATCH (NL* caughtException NL*)? block;
+
+caughtException
+    : LPAREN NL* annotations simpleIdentifier NL* COLON NL* type (NL* CONJ NL* type)* NL* RPAREN;
 
 finallyBlock
     : FINALLY NL* block;
@@ -432,7 +440,6 @@ breakExpression
 literalConstant
     : nullLiteral
     | boolLiteral
-    | trileanLiteral
     | integerLiteral
     | longLiteral
     | shortLiteral
@@ -448,9 +455,6 @@ nullLiteral
 
 boolLiteral
     : TRUE | FALSE;
-
-trileanLiteral
-    : TRUE | FALSE | NONE;
 
 integerLiteral
     : IntegerLiteral;
@@ -504,7 +508,7 @@ lambdaParameters
     : lambdaParameter (NL* COMMA NL* lambdaParameter)*;
 
 lambdaParameter
-    : annotations? simpleIdentifier NL* COLON NL* type;
+    : annotations simpleIdentifier (NL* COLON NL* type)?;
 
 // Operators
 
@@ -563,10 +567,7 @@ postfixUnaryOperator
     : INCR | DECR | DOUBLE_EXCL;
 
 assignableExpression
-    : expression assignableSuffix+ | parenthesizedAssignableExpression;
-
-parenthesizedAssignableExpression
-    : LPAREN NL* assignableExpression NL* RPAREN;
+    : expression assignableSuffix+;
 
 assignableSuffix
     : indexingSuffix | navigationSuffix;
@@ -580,7 +581,7 @@ lambdaCallSuffix
     : valueArguments? annotatedLambda;
 
 annotatedLambda
-    : annotations? NL* lambdaLiteral;
+    : annotations NL* lambdaLiteral;
 
 indexingSuffix
     : LSQUARE NL* expression (NL* COMMA NL* expression)* NL* RSQUARE;
@@ -594,7 +595,7 @@ memberAccessOperator
 // Modifiers
 
 modifierList
-    : (annotations NL* | modifier NL*)+;
+    : annotations (modifier NL*)*;
 
 modifier
     : visibilityModifier
@@ -615,7 +616,7 @@ inheritanceModifier
     | COVER;
 
 parameterModifier
-    : PARAMS;
+    : PARAMS | BLUEPRINT;
 
 functionModifier
     : INLINE
@@ -625,7 +626,7 @@ functionModifier
 // Annotations
 
 annotations
-    : (annotation NL*)+;
+    : (annotation NL*)*;
 
 annotation
     : HASH (unescapedAnnotation | LSQUARE NL* unescapedAnnotation+ NL* RSQUARE);

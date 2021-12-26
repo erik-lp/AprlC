@@ -1,4 +1,4 @@
-// Generated from C:/Users/erik-/IdeaProjects/AprlC/src/aprl\AprlParser.g4 by ANTLR 4.9.1
+// Generated from C:/Users/erik-/IdeaProjects/AprlC/src/aprl\AprlParser.g4 by ANTLR 4.9.2
 package aprl;
 import org.antlr.v4.runtime.tree.ParseTreeListener;
 
@@ -68,15 +68,25 @@ public interface AprlParserListener extends ParseTreeListener {
 	 */
 	void exitImportIdentifier(AprlParser.ImportIdentifierContext ctx);
 	/**
-	 * Enter a parse tree produced by {@link AprlParser#subImportIdentifier}.
+	 * Enter a parse tree produced by {@link AprlParser#allImport}.
 	 * @param ctx the parse tree
 	 */
-	void enterSubImportIdentifier(AprlParser.SubImportIdentifierContext ctx);
+	void enterAllImport(AprlParser.AllImportContext ctx);
 	/**
-	 * Exit a parse tree produced by {@link AprlParser#subImportIdentifier}.
+	 * Exit a parse tree produced by {@link AprlParser#allImport}.
 	 * @param ctx the parse tree
 	 */
-	void exitSubImportIdentifier(AprlParser.SubImportIdentifierContext ctx);
+	void exitAllImport(AprlParser.AllImportContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link AprlParser#multiImport}.
+	 * @param ctx the parse tree
+	 */
+	void enterMultiImport(AprlParser.MultiImportContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link AprlParser#multiImport}.
+	 * @param ctx the parse tree
+	 */
+	void exitMultiImport(AprlParser.MultiImportContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link AprlParser#singleImport}.
 	 * @param ctx the parse tree
@@ -87,16 +97,6 @@ public interface AprlParserListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitSingleImport(AprlParser.SingleImportContext ctx);
-	/**
-	 * Enter a parse tree produced by {@link AprlParser#importAlias}.
-	 * @param ctx the parse tree
-	 */
-	void enterImportAlias(AprlParser.ImportAliasContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link AprlParser#importAlias}.
-	 * @param ctx the parse tree
-	 */
-	void exitImportAlias(AprlParser.ImportAliasContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link AprlParser#topLevelObject}.
 	 * @param ctx the parse tree
@@ -178,6 +178,16 @@ public interface AprlParserListener extends ParseTreeListener {
 	 */
 	void exitClassParameter(AprlParser.ClassParameterContext ctx);
 	/**
+	 * Enter a parse tree produced by {@link AprlParser#valOrVar}.
+	 * @param ctx the parse tree
+	 */
+	void enterValOrVar(AprlParser.ValOrVarContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link AprlParser#valOrVar}.
+	 * @param ctx the parse tree
+	 */
+	void exitValOrVar(AprlParser.ValOrVarContext ctx);
+	/**
 	 * Enter a parse tree produced by {@link AprlParser#delegationSpecifiers}.
 	 * @param ctx the parse tree
 	 */
@@ -207,16 +217,6 @@ public interface AprlParserListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitInterfaceDelegationSpecifiers(AprlParser.InterfaceDelegationSpecifiersContext ctx);
-	/**
-	 * Enter a parse tree produced by {@link AprlParser#annotatedInterfaceDelegationSpecifier}.
-	 * @param ctx the parse tree
-	 */
-	void enterAnnotatedInterfaceDelegationSpecifier(AprlParser.AnnotatedInterfaceDelegationSpecifierContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link AprlParser#annotatedInterfaceDelegationSpecifier}.
-	 * @param ctx the parse tree
-	 */
-	void exitAnnotatedInterfaceDelegationSpecifier(AprlParser.AnnotatedInterfaceDelegationSpecifierContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link AprlParser#valueArguments}.
 	 * @param ctx the parse tree
@@ -698,6 +698,36 @@ public interface AprlParserListener extends ParseTreeListener {
 	 */
 	void exitFunctionBody(AprlParser.FunctionBodyContext ctx);
 	/**
+	 * Enter a parse tree produced by {@link AprlParser#blueprintDeclaration}.
+	 * @param ctx the parse tree
+	 */
+	void enterBlueprintDeclaration(AprlParser.BlueprintDeclarationContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link AprlParser#blueprintDeclaration}.
+	 * @param ctx the parse tree
+	 */
+	void exitBlueprintDeclaration(AprlParser.BlueprintDeclarationContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link AprlParser#blueprintBody}.
+	 * @param ctx the parse tree
+	 */
+	void enterBlueprintBody(AprlParser.BlueprintBodyContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link AprlParser#blueprintBody}.
+	 * @param ctx the parse tree
+	 */
+	void exitBlueprintBody(AprlParser.BlueprintBodyContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link AprlParser#blueprintMember}.
+	 * @param ctx the parse tree
+	 */
+	void enterBlueprintMember(AprlParser.BlueprintMemberContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link AprlParser#blueprintMember}.
+	 * @param ctx the parse tree
+	 */
+	void exitBlueprintMember(AprlParser.BlueprintMemberContext ctx);
+	/**
 	 * Enter a parse tree produced by {@link AprlParser#block}.
 	 * @param ctx the parse tree
 	 */
@@ -767,16 +797,6 @@ public interface AprlParserListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitWhileStatement(AprlParser.WhileStatementContext ctx);
-	/**
-	 * Enter a parse tree produced by {@link AprlParser#doWhileStatement}.
-	 * @param ctx the parse tree
-	 */
-	void enterDoWhileStatement(AprlParser.DoWhileStatementContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link AprlParser#doWhileStatement}.
-	 * @param ctx the parse tree
-	 */
-	void exitDoWhileStatement(AprlParser.DoWhileStatementContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link AprlParser#assignment}.
 	 * @param ctx the parse tree
@@ -1118,6 +1138,16 @@ public interface AprlParserListener extends ParseTreeListener {
 	 */
 	void exitCatchBlock(AprlParser.CatchBlockContext ctx);
 	/**
+	 * Enter a parse tree produced by {@link AprlParser#caughtException}.
+	 * @param ctx the parse tree
+	 */
+	void enterCaughtException(AprlParser.CaughtExceptionContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link AprlParser#caughtException}.
+	 * @param ctx the parse tree
+	 */
+	void exitCaughtException(AprlParser.CaughtExceptionContext ctx);
+	/**
 	 * Enter a parse tree produced by {@link AprlParser#finallyBlock}.
 	 * @param ctx the parse tree
 	 */
@@ -1207,16 +1237,6 @@ public interface AprlParserListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitBoolLiteral(AprlParser.BoolLiteralContext ctx);
-	/**
-	 * Enter a parse tree produced by {@link AprlParser#trileanLiteral}.
-	 * @param ctx the parse tree
-	 */
-	void enterTrileanLiteral(AprlParser.TrileanLiteralContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link AprlParser#trileanLiteral}.
-	 * @param ctx the parse tree
-	 */
-	void exitTrileanLiteral(AprlParser.TrileanLiteralContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link AprlParser#integerLiteral}.
 	 * @param ctx the parse tree
@@ -1587,16 +1607,6 @@ public interface AprlParserListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitAssignableExpression(AprlParser.AssignableExpressionContext ctx);
-	/**
-	 * Enter a parse tree produced by {@link AprlParser#parenthesizedAssignableExpression}.
-	 * @param ctx the parse tree
-	 */
-	void enterParenthesizedAssignableExpression(AprlParser.ParenthesizedAssignableExpressionContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link AprlParser#parenthesizedAssignableExpression}.
-	 * @param ctx the parse tree
-	 */
-	void exitParenthesizedAssignableExpression(AprlParser.ParenthesizedAssignableExpressionContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link AprlParser#assignableSuffix}.
 	 * @param ctx the parse tree

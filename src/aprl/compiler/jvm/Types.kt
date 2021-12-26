@@ -1,33 +1,6 @@
 package aprl.compiler.jvm
 
-import aprl.AprlParser
-import aprl.compiler.AprlListener
-import aprl.lang.Function0
-import aprl.lang.Function1
-import aprl.lang.Function10
-import aprl.lang.Function11
-import aprl.lang.Function12
-import aprl.lang.Function13
-import aprl.lang.Function14
-import aprl.lang.Function15
-import aprl.lang.Function16
-import aprl.lang.Function17
-import aprl.lang.Function18
-import aprl.lang.Function19
-import aprl.lang.Function2
-import aprl.lang.Function20
-import aprl.lang.Function21
-import aprl.lang.Function22
-import aprl.lang.Function23
-import aprl.lang.Function24
-import aprl.lang.Function25
-import aprl.lang.Function3
-import aprl.lang.Function4
-import aprl.lang.Function5
-import aprl.lang.Function6
-import aprl.lang.Function7
-import aprl.lang.Function8
-import aprl.lang.Function9
+import aprl.lang.*
 import java.lang.Void
 import java.lang.reflect.Type as JType
 
@@ -81,7 +54,7 @@ class FunctionType(annotations: Annotations, val types: List<Type>, val returnTy
         25 -> Function25::class
         else -> throw InternalError("Lambda literal with more than 25 parameters! This should have been detected and caught earlier!")
     }.java
-    override val typeArguments: TypeArgument get() = TypeArgument(types.map { TypeProjection(type = it) })
+    override val typeArguments: TypeArgument get() = TypeArgument(types.map { TypeProjection(type = it) } + TypeProjection(type = returnType))
 }
 
 class ArrayType(annotations: Annotations = Annotations(), val type: Type) : Type(annotations) {

@@ -1,0 +1,11 @@
+package aprl.compiler.psi.aprl
+
+import aprl.compiler.psi.Position
+
+class StructDeclaration(
+    override val position: Position,
+    override val modifiers: ModifierList,
+    override val name: SimpleIdentifier,
+    val delegationSpecifiers: List<DelegationSpecifier>,
+    val members: List<StructMember>?,
+) : TopLevelObject(), Named

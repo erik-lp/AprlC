@@ -1,5 +1,6 @@
 package aprl.compiler.jvm
 
+import aprl.compiler.psi.aprl.StructMember
 import aprl.compiler.toType
 import aprl.lang.Complex
 import aprl.lang.Trilean
@@ -9,8 +10,6 @@ import java.lang.reflect.Method
 interface ClassMember {
     val enclosingClass: ClassMemberOwner?
 }
-
-interface StructMember // TODO: StructMember
 
 interface TopLevelObject : ClassMember
 interface OnlyClassMember : ClassMember
@@ -399,7 +398,11 @@ class Comparison(val namedInfixExpression: NamedInfixExpression, val additionalN
     }
 }
 
-class CallSuffix(val typeArguments: TypeArgument?, val lambdaCallSuffix: LambdaCallSuffix?, val valueArguments: ValueArguments?) : Java {
+class CallSuffix(
+    val typeArguments: TypeArgument?,
+    val lambdaCallSuffix: LambdaCallSuffix?,
+    val valueArguments: ValueArguments?,
+) : Java {
     override fun toJava(): String {
         TODO("Not yet implemented")
     }
@@ -535,7 +538,6 @@ class PostfixUnaryExpression(
 
 class UnaryPostfix(
     val postfixUnaryOperator: PostfixUnaryOperator?,
-    val typeArguments: TypeArgument?,
     val callSuffix: CallSuffix?,
     val indexingSuffix: IndexingSuffix?,
     val navigationSuffix: NavigationSuffix?,

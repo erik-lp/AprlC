@@ -1,7 +1,9 @@
+@file:JvmName("APRL")
 package aprl.compiler
 
 import aprl.AprlLexer
 import aprl.AprlParser
+import aprl.compiler.conversion.AprlConverter
 import org.antlr.v4.gui.Trees
 import org.antlr.v4.runtime.CharStreams
 import org.antlr.v4.runtime.CommonTokenStream
@@ -9,14 +11,10 @@ import org.antlr.v4.runtime.tree.ParseTreeWalker
 import java.io.File
 import java.nio.charset.Charset
 import java.nio.file.Paths
+import java.util.*
 
 fun main(args: Array<String>) {
-    try {
-        aprlc(args)
-    } catch (ex: Error) {
-        println("\u001B[31m${ex.message}\u001B[0m")
-        println("\u001B[31m" + ex.stackTraceToString().substringAfter("\n").substringBefore("\n") + "\u001B[0m")
-    }
+    aprlc(args)
 }
 
 private fun aprlc(args: Array<String>) {
@@ -37,5 +35,5 @@ private fun compile(input: File, targetDir: File?) {
     Trees.inspect(tree, parser)
     val listener = AprlListener(input.path, targetDir)
     ParseTreeWalker().walk(listener, tree)
-    listener.compile()
+    // listener.compile()
 }
