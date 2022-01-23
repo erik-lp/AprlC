@@ -59,8 +59,8 @@ class AprlVerifier(val aprlFile: AprlFile) {
     
     private fun verifySingleAdditiveExpression(leftAddend: MultiplicativeExpression, operator: AdditiveExpression.Operator, rightAddend: MultiplicativeExpression, scope: Scope<Named>): MultiplicativeExpression {
         val leftType = evaluateMultiplicativeExpression(leftAddend)
-        val requiredOperatorFunction = operator.operatorName
-        val functions =
+        val requiredOperator = operator.operatorName
+        val functions = leftType.getFunctionsByName(requiredOperator, scope)
         val rightType = evaluateMultiplicativeExpression(rightAddend)
         
         TODO("verifySingleAdditiveExpression()")

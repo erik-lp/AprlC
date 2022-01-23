@@ -14,4 +14,6 @@ class Identifier(
         return other is Identifier && identifiers.contentEquals(other.identifiers)
     }
     
+    override fun toString() = identifiers.joinToString(".")
+    
 }

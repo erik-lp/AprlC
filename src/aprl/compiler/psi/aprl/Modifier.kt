@@ -1,18 +1,19 @@
 package aprl.compiler.psi.aprl
 
 import aprl.compiler.psi.Position
+import aprl.compiler.psi.java.Modifier as JModifier
 
 class Modifier(
     override val position: Position,
     val modifier: RawModifier
 ) : Token, Comparable<Modifier> {
     
-    enum class Target {
-        CLASS,
-        INTERFACE,
-        STRUCT,
-        ANNOTATION,
-        DOCUMENT,
+    enum class Target(private vararg val implied: RawModifier) {
+        CLASS(RawModifier.FINAL),
+        INTERFACE(RawModifier.ABSTRACT, RawModifier.OPEN),
+        STRUCT(RawModifier.FINAL),
+        ANNOTATION(RawModifier.FINAL),
+        DOCUMENT(RawModifier.FINAL),
         PROPERTY,
         FUNCTION,
         GETTER,
@@ -20,18 +21,7 @@ class Modifier(
         PARAMETER;
         
         fun implies(modifier: Modifier): Boolean {
-            return modifier.modifier in (when (this) {
-                CLASS -> arrayOf(RawModifier.FINAL)
-                INTERFACE -> arrayOf(RawModifier.ABSTRACT, RawModifier.OPEN)
-                STRUCT -> arrayOf(RawModifier.FINAL)
-                ANNOTATION -> arrayOf(RawModifier.FINAL)
-                DOCUMENT -> arrayOf(RawModifier.FINAL)
-                PROPERTY -> arrayOf()
-                FUNCTION -> arrayOf()
-                GETTER -> arrayOf()
-                SETTER -> arrayOf()
-                PARAMETER -> arrayOf()
-            } + RawModifier.PUBLIC)
+            return modifier.modifier in (implied.toList() + RawModifier.PUBLIC)
         }
         
         override fun toString(): String {
@@ -107,6 +97,10 @@ class Modifier(
     
     override fun compareTo(other: Modifier): Int {
         return modifier.compare(other.modifier)
+    }
+    
+    fun toJavaModifier(): JModifier {
+    
     }
     
 }

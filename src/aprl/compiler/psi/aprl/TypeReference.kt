@@ -1,6 +1,7 @@
 package aprl.compiler.psi.aprl
 
 import aprl.compiler.psi.Position
+import java.lang.reflect.Type
 
 class TypeReference(
     override val position: Position,
@@ -10,4 +11,14 @@ class TypeReference(
     val arrayType: ArrayType?,
     val nullableType: NullableType?,
     val identifier: Pair<Identifier, List<TypeProjection>?>?
-) : Token
+) : Token {
+    
+    fun toType(): Type? {
+        return functionType?.toType()
+            ?: parenthesizedType?.toType()
+            ?: arrayType?.toType()
+            ?: nullableType?.toType()
+            ?: qualifiedNameToType(identifier!!)
+    }
+    
+}

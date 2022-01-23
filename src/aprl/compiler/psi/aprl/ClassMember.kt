@@ -1,3 +1,3 @@
 package aprl.compiler.psi.aprl
 
-sealed interface ClassMember: Token
+sealed interface ClassMember : Token

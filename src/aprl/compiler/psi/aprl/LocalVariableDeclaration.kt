@@ -9,4 +9,9 @@ class LocalVariableDeclaration(
     val final: Boolean,
     val variableDeclaration: VariableDeclaration,
     val expression: Expression?,
-) : Token
+) : Named {
+    
+    override val name: SimpleIdentifier
+        get() = variableDeclaration.name
+    
+}

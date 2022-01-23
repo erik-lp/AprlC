@@ -428,7 +428,7 @@ class AprlConverter(val file: File) : AprlParserBaseVisitor<Token>() {
         val parameters = ctx.functionValueParameters().functionValueParameter().map(::visitFunctionValueParameter)
         val returnType = ctx.type()?.let(::visitType)
         val body = ctx.functionBody()?.let(::visitFunctionBody)
-        return FunctionDeclaration(ctx.position, modifiers, static, operator, typeParameters, name, parameters, returnType, body)
+        return FunctionDeclaration(file, ctx.position, modifiers, static, operator, typeParameters, name, parameters, returnType, body)
     }
     
     override fun visitFunctionValueParameter(ctx: AprlParser.FunctionValueParameterContext): FunctionValueParameter {

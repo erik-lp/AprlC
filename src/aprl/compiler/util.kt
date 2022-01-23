@@ -3,7 +3,6 @@ package aprl.compiler
 import aprl.AprlParser
 import aprl.compiler.jvm.*
 import aprl.lang.Complex
-import aprl.lang.Trilean
 import org.antlr.v4.runtime.ParserRuleContext
 import java.lang.NumberFormatException
 import java.lang.reflect.*
@@ -11,7 +10,6 @@ import java.lang.reflect.Constructor
 import java.lang.reflect.Type as JType
 import java.math.BigDecimal
 import java.math.BigInteger
-import java.util.ArrayList
 
 @Suppress("DEPRECATION")
 fun loadPackage(string: String): Package? {
@@ -152,20 +150,6 @@ infix fun <T> List<T>.andMaybe(element: T?) = element?.let { this + it } ?: this
 
 infix fun <T> Set<T>.andMaybe(element: T?) = element?.let { this + it } ?: this
 
-fun String.toTrilean(): Trilean = when(this) {
-    "true" -> Trilean.TRUE
-    "false" -> Trilean.FALSE
-    "none" -> Trilean.NONE
-    else -> throw IllegalArgumentException("The string doesn't represent a boolean value: $this")
-}
-
-fun String.toTrileanOrNull(): Trilean? = when (this) {
-    "true" -> Trilean.TRUE
-    "false" -> Trilean.FALSE
-    "none" -> Trilean.NONE
-    else -> null
-}
-
 @Throws(NumberFormatException::class)
 fun String.decodeWholeNumber(): BigInteger {
     return if (startsWith("-")) {
@@ -267,6 +251,14 @@ fun JType.toPlainClass(): Class<*> {
     }
 }
 
+fun JType.toPlainClassOrNull(): Class<*>? {
+    return when (this) {
+        is Class<*> -> this
+        is ParameterizedType -> this.rawType as Class<*>
+        else -> null
+    }
+}
+
 val AccessibleObject.type: Type get() = when (this) {
     is Constructor<*> -> declaringClass.toType()
     is Field -> genericType.toType()
@@ -283,20 +275,10 @@ fun <T> List<List<T>>.allAt(index: Int): List<T> {
 }
 
 val <T> List<T>.allEqual: Boolean
-    get() {
-        return all { it == first() }
-    }
+    get() = all { it == first() }
 
-val <T> Class<T>.hierarchy: List<Class<in T>>
-    get() {
-        val hierarchy = ArrayList<Class<in T>>()
-        var superClass = superclass
-        while (superClass != null) {
-            hierarchy.add(superClass)
-            superClass = superClass.superclass
-        }
-        return hierarchy.reversed()
-    }
+val <T> Class<T>.classHierarchy: List<Class<in T>>
+    get() = superclass?.classHierarchy?.plus(this) ?: listOf(this)
 
 fun <T> List<T>.contentEquals(other: List<T>): Boolean {
     return size == other.size && zip(other).all { it.first == it.second }

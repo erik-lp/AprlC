@@ -5,4 +5,10 @@ import aprl.compiler.psi.Position
 class ReturnExpression(
     override val position: Position,
     val expression: Expression?
-) : JumpExpression
+) : JumpExpression {
+    
+    fun toBlock(): Block {
+    
+    }
+    
+}
